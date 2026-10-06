@@ -2,7 +2,7 @@ import { Tabs, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { GlassView, isGlassEffectAPIAvailable } from "expo-glass-effect";
 import { BlurView } from "expo-blur"; // fallback за iOS < 26
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Platform,
   StyleSheet,
@@ -12,29 +12,41 @@ import {
   TouchableNativeFeedback,
   Animated,
   Pressable,
+  BackHandler,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useReducedMotion } from "react-native-reanimated";
 import { useTheme } from "@/hooks/useTheme";
+import { useReduceTransparency } from "@/hooks/useReduceTransparency";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  ANDROID_TAB_BAR_HEIGHT,
+  TAB_BAR_HEIGHT,
+  iosTabBarBottom,
+} from "@/constants/layout";
 
-const TAB_BAR_HEIGHT = 70;
-const TAB_BAR_BOTTOM_IOS = 34;
-const TAB_BAR_BOTTOM_ANDROID = 0;
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
+type TabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>["tabBar"]>>[0];
+
+/** Labels may grow with Dynamic Type, but not enough to break the fixed bar (U-16). */
+const LABEL_MAX_SCALE = 1.3;
 
 // ─── Конфигурација на табови ──────────────────────────────────────────────────
 
 const MORE_ITEMS = [
-  { route: "/budget",   icon: "wallet-outline"   as const, key: "budget"   },
-  { route: "/settings", icon: "settings-outline" as const, key: "settings" },
+  { route: "/budget",   name: "budget",   icon: "wallet-outline"   as const, key: "budget"   },
+  { route: "/settings", name: "settings", icon: "settings-outline" as const, key: "settings" },
+] as const;
+
+const MAIN_TABS: { name: string; icon: IconName; iconFocused: IconName; key: string }[] = [
+  { name: "index",   icon: "pie-chart-outline", iconFocused: "pie-chart", key: "overview" },
+  { name: "history", icon: "time-outline",      iconFocused: "time",      key: "history"  },
+  { name: "add",     icon: "add",               iconFocused: "add",       key: "add"      },
+  { name: "savings", icon: "cash-outline",      iconFocused: "cash",      key: "savings"  },
 ];
 
-const MAIN_TABS = [
-  { name: "index",   icon: "pie-chart-outline" as const, iconFocused: "pie-chart"  as const, key: "overview" },
-  { name: "history", icon: "time-outline"       as const, iconFocused: "time"       as const, key: "history"  },
-  { name: "add",     icon: "add"                as const, iconFocused: "add"        as const, key: "add"      },
-  { name: "savings", icon: "cash-outline"       as const, iconFocused: "cash"       as const, key: "savings"  },
-];
+const MORE_ROUTE_NAMES: string[] = MORE_ITEMS.map((i) => i.name);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // iOS — Liquid Glass Tab Bar (нативен UIGlassEffect)
@@ -42,11 +54,8 @@ const MAIN_TABS = [
 
 /**
  * GlassPill — на iOS 26+ го користи вистинскиот нативен UIGlassEffect
- * преку expo-glass-effect. На iOS < 26 фалбекува на BlurView.
- *
- * isGlassEffectAPIAvailable е boolean КОНСТАНТА (не функција) —
- * само со оваа вредност знаеме дали уредот поддржува UIGlassEffect.
- * GlassColorScheme поддржува само "light" | "dark" (нема "system").
+ * преку expo-glass-effect; на постар iOS фалбекува на BlurView. Со вклучено
+ * „Reduce Transparency" е обична непроѕирна површина (U-16).
  */
 function GlassPill({
   style,
@@ -60,12 +69,20 @@ function GlassPill({
   tintColor?: string;
   children: React.ReactNode;
 }) {
-  const { isDark } = useTheme();
-  // isGlassEffectAPIAvailable е boolean константа, НЕ функција
+  const { isDark, colors } = useTheme();
+  const reduceTransparency = useReduceTransparency();
   const scheme: "light" | "dark" = isDark ? "dark" : "light";
 
+  if (reduceTransparency) {
+    return (
+      <View style={[style, { backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.separator }]}>
+        {children}
+      </View>
+    );
+  }
+
+  // isGlassEffectAPIAvailable е функција: проверува дали уредот има UIGlassEffect.
   if (isGlassEffectAPIAvailable()) {
-    // ✅ Вистинскиот нативен iOS Liquid Glass (UIGlassEffect / UIVisualEffectView)
     return (
       <GlassView
         style={style}
@@ -115,16 +132,22 @@ function MoreMenu({
 }: {
   visible: boolean;
   onClose: () => void;
-  onNavigate: (route: string) => void;
+  onNavigate: (route: (typeof MORE_ITEMS)[number]["route"]) => void;
 }) {
   const { isDark } = useTheme();
   const { t } = useTranslation();
-  // Само translateY — opacity НИКОГАШ не ставаме на родителот на GlassView,
+  const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
+  // Само translateY/scale — opacity НИКОГАШ не ставаме на родителот на GlassView,
   // инаку нативниот glass ефект престанува да се рендерира (ограничување на UIKit).
-  const anim = useRef(new Animated.Value(0)).current;
+  const [anim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     if (!visible) return;
+    if (reduceMotion) {
+      anim.setValue(1);
+      return;
+    }
     anim.setValue(0);
     Animated.spring(anim, {
       toValue: 1,
@@ -132,31 +155,32 @@ function MoreMenu({
       tension: 70,
       friction: 11,
     }).start();
-  }, [visible]);
+  }, [visible, reduceMotion, anim]);
 
   // Менито се монтира само кога е отворено: ако GlassView се креира под
   // родител со opacity 0, glass ефектот воопшто не се рендерира.
   if (!visible) return null;
 
   const pillTint = isDark ? "rgba(28,28,30,0.65)" : "rgba(255,255,255,0.65)";
+  const textColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.84)";
 
   return (
     <Pressable
       style={[StyleSheet.absoluteFill, { zIndex: 99 }]}
       onPress={onClose}
+      accessibilityLabel={t("common.close")}
     >
       {MORE_ITEMS.map((item, i) => {
         const translateY = anim.interpolate({
           inputRange: [0, 1],
           outputRange: [14 + i * 8, 0],
         });
-        // Скалирање наместо opacity — не го допираме opacity за да не го скриеме glass-от
         const scale = anim.interpolate({
           inputRange: [0, 0.6, 1],
           outputRange: [0.85, 0.95, 1],
           extrapolate: "clamp",
         });
-        const bottomOffset = TAB_BAR_BOTTOM_IOS + TAB_BAR_HEIGHT + 12 + i * 58;
+        const bottomOffset = iosTabBarBottom(insets.bottom) + TAB_BAR_HEIGHT + 12 + i * 58;
 
         return (
           <Animated.View
@@ -175,37 +199,17 @@ function MoreMenu({
                 onClose();
                 onNavigate(item.route);
               }}
+              accessibilityRole="menuitem"
             >
               <GlassPill style={styles.moreItemButton} glassStyle="regular" tintColor={pillTint}>
                 <View
                   style={[
                     styles.moreItemBorder,
-                    {
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.10)"
-                        : "rgba(255,255,255,0.55)",
-                    },
+                    { borderColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.55)" },
                   ]}
                 />
-                <Ionicons
-                  name={item.icon}
-                  size={18}
-                  color={
-                    isDark
-                      ? "rgba(255,255,255,0.84)"
-                      : "rgba(0,0,0,0.72)"
-                  }
-                />
-                <Text
-                  style={[
-                    styles.moreItemLabel,
-                    {
-                      color: isDark
-                        ? "rgba(255,255,255,0.84)"
-                        : "rgba(0,0,0,0.76)",
-                    },
-                  ]}
-                >
+                <Ionicons name={item.icon} size={18} color={textColor} />
+                <Text style={[styles.moreItemLabel, { color: textColor }]} maxFontSizeMultiplier={LABEL_MAX_SCALE}>
                   {t(`tabs.${item.key}`)}
                 </Text>
               </GlassPill>
@@ -219,6 +223,14 @@ function MoreMenu({
 
 // ─── Tab Items ────────────────────────────────────────────────────────────────
 
+/** Contrast-checked label/icon colours for the glass bar (U-7). */
+function useIOSTabColors(focused: boolean) {
+  const { isDark } = useTheme();
+  return focused
+    ? isDark ? "rgba(255,255,255,0.94)" : "rgba(0,0,0,0.86)"
+    : isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.60)";
+}
+
 function IOSTabItem({
   label,
   icon,
@@ -227,15 +239,12 @@ function IOSTabItem({
   onPress,
 }: {
   label: string;
-  icon: any;
-  iconFocused: any;
+  icon: IconName;
+  iconFocused: IconName;
   focused: boolean;
   onPress: () => void;
 }) {
-  const { isDark } = useTheme();
-  const iconColor = focused
-    ? isDark ? "rgba(255,255,255,0.94)" : "rgba(0,0,0,0.84)"
-    : isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.38)";
+  const color = useIOSTabColors(focused);
 
   return (
     <TouchableOpacity
@@ -245,46 +254,32 @@ function IOSTabItem({
         onPress();
       }}
       style={styles.tabItemHitArea}
+      accessibilityRole="tab"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: focused }}
     >
       {focused ? (
         // Нативен glass pill за активниот таб
         <GlassPill style={styles.iconPill} glassStyle="clear">
           <View style={styles.pillGlow} />
-          <Ionicons name={iconFocused} size={20} color={iconColor} />
+          <Ionicons name={iconFocused} size={20} color={color} />
         </GlassPill>
       ) : (
         <View style={styles.iconPill}>
-          <Ionicons name={icon} size={20} color={iconColor} />
+          <Ionicons name={icon} size={20} color={color} />
         </View>
       )}
-      <Text
-        style={[
-          styles.label,
-          {
-            color: focused
-              ? isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.84)"
-              : isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.40)",
-          },
-        ]}
-      >
+      <Text style={[styles.label, { color }]} maxFontSizeMultiplier={LABEL_MAX_SCALE} numberOfLines={1}>
         {label}
       </Text>
     </TouchableOpacity>
   );
 }
 
-function IOSAddTabItem({
-  focused,
-  onPress,
-}: {
-  focused: boolean;
-  onPress: () => void;
-}) {
+function IOSAddTabItem({ focused, onPress }: { focused: boolean; onPress: () => void }) {
   const { isDark } = useTheme();
   const { t } = useTranslation();
-  const iconColor = focused
-    ? isDark ? "rgba(255,255,255,0.96)" : "rgba(0,0,0,0.86)"
-    : isDark ? "rgba(255,255,255,0.70)" : "rgba(0,0,0,0.62)";
+  const color = useIOSTabColors(focused);
 
   return (
     <TouchableOpacity
@@ -294,8 +289,11 @@ function IOSAddTabItem({
         onPress();
       }}
       style={styles.tabItemHitArea}
+      accessibilityRole="tab"
+      accessibilityLabel={t("tabs.add")}
+      accessibilityState={{ selected: focused }}
     >
-      {/* Add секогаш го добива glass pill — focused = clear, unfocused = light clear */}
+      {/* Add секогаш го добива glass pill — focused = clear, unfocused = regular */}
       <GlassPill
         style={[
           styles.addPill,
@@ -308,33 +306,18 @@ function IOSAddTabItem({
         glassStyle={focused ? "clear" : "regular"}
       >
         <View style={styles.pillGlow} />
-        <Ionicons name="add" size={21} color={iconColor} />
+        <Ionicons name="add" size={21} color={color} />
       </GlassPill>
-      <Text
-        style={[
-          styles.label,
-          {
-            color: focused
-              ? isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.84)"
-              : isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.40)",
-          },
-        ]}
-      >
+      <Text style={[styles.label, { color }]} maxFontSizeMultiplier={LABEL_MAX_SCALE} numberOfLines={1}>
         {t("tabs.add")}
       </Text>
     </TouchableOpacity>
   );
 }
 
-function IOSMoreButton({
-  onPress,
-  isOpen,
-}: {
-  onPress: () => void;
-  isOpen: boolean;
-}) {
-  const { isDark } = useTheme();
+function IOSMoreButton({ onPress, active, open }: { onPress: () => void; active: boolean; open: boolean }) {
   const { t } = useTranslation();
+  const color = useIOSTabColors(active || open);
   return (
     <TouchableOpacity
       activeOpacity={0.75}
@@ -343,35 +326,21 @@ function IOSMoreButton({
         onPress();
       }}
       style={styles.tabItemHitArea}
+      accessibilityRole="tab"
+      accessibilityLabel={t("tabs.more")}
+      accessibilityState={{ selected: active, expanded: open }}
     >
-      {isOpen ? (
+      {active || open ? (
         <GlassPill style={styles.iconPill} glassStyle="clear">
           <View style={styles.pillGlow} />
-          <Ionicons
-            name="ellipsis-horizontal"
-            size={20}
-            color={isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.84)"}
-          />
+          <Ionicons name="ellipsis-horizontal" size={20} color={color} />
         </GlassPill>
       ) : (
         <View style={styles.iconPill}>
-          <Ionicons
-            name="ellipsis-horizontal"
-            size={20}
-            color={isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.38)"}
-          />
+          <Ionicons name="ellipsis-horizontal" size={20} color={color} />
         </View>
       )}
-      <Text
-        style={[
-          styles.label,
-          {
-            color: isOpen
-              ? isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.84)"
-              : isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.40)",
-          },
-        ]}
-      >
+      <Text style={[styles.label, { color }]} maxFontSizeMultiplier={LABEL_MAX_SCALE} numberOfLines={1}>
         {t("tabs.more")}
       </Text>
     </TouchableOpacity>
@@ -380,53 +349,41 @@ function IOSMoreButton({
 
 // ─── iOS Tab Bar pill ─────────────────────────────────────────────────────────
 
-function IOSTabBar({
-  state,
-  navigation,
-  moreOpen,
-  onMorePress,
-}: {
-  state: any;
-  navigation: any;
+interface BarProps {
+  focusedName: string;
+  navigate: (name: string) => void;
   moreOpen: boolean;
   onMorePress: () => void;
-}) {
+}
+
+function IOSTabBar({ focusedName, navigate, moreOpen, onMorePress }: BarProps) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.iosTabBarOuter} pointerEvents="box-none">
-      {/*
-       * GlassPill = нативен UIGlassEffect на iOS 26+
-       * Нема повеќе BlurView + LinearGradient — телефонот сам го прави ефектот.
-       */}
+    <View
+      style={[styles.iosTabBarOuter, { bottom: iosTabBarBottom(insets.bottom) }]}
+      pointerEvents="box-none"
+      accessibilityRole="tablist"
+    >
       <GlassPill style={styles.tabBarPill} glassStyle="regular">
         <View style={styles.tabRow}>
-          <IOSTabItem
-            label={t("tabs.overview")}
-            icon="pie-chart-outline"
-            iconFocused="pie-chart"
-            focused={state.index === 0}
-            onPress={() => navigation.navigate("index")}
-          />
-          <IOSTabItem
-            label={t("tabs.history")}
-            icon="time-outline"
-            iconFocused="time"
-            focused={state.index === 1}
-            onPress={() => navigation.navigate("history")}
-          />
-          <IOSAddTabItem
-            focused={state.index === 2}
-            onPress={() => navigation.navigate("add")}
-          />
-          <IOSTabItem
-            label={t("tabs.savings")}
-            icon="cash-outline"
-            iconFocused="cash"
-            focused={state.index === 3}
-            onPress={() => navigation.navigate("savings")}
-          />
-          <IOSMoreButton onPress={onMorePress} isOpen={moreOpen} />
+          {MAIN_TABS.map((tab) =>
+            tab.name === "add" ? (
+              <IOSAddTabItem key={tab.name} focused={focusedName === "add"} onPress={() => navigate("add")} />
+            ) : (
+              <IOSTabItem
+                key={tab.name}
+                label={t(`tabs.${tab.key}`)}
+                icon={tab.icon}
+                iconFocused={tab.iconFocused}
+                focused={focusedName === tab.name}
+                onPress={() => navigate(tab.name)}
+              />
+            )
+          )}
+          {/* Budget and Settings live behind "More", so it shows as active there (U-11). */}
+          <IOSMoreButton onPress={onMorePress} active={MORE_ROUTE_NAMES.includes(focusedName)} open={moreOpen} />
         </View>
       </GlassPill>
     </View>
@@ -434,8 +391,18 @@ function IOSTabBar({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Android — Material3 Native Tab Bar (непроменет)
+// Android — Material3 Tab Bar
 // ═══════════════════════════════════════════════════════════════════════════════
+
+function useAndroidTabColors() {
+  const { isDark, colors } = useTheme();
+  return {
+    active: colors.accent,
+    inactive: isDark ? "rgba(255,255,255,0.66)" : "rgba(0,0,0,0.62)",
+    indicator: isDark ? "rgba(255,255,255,0.12)" : `${colors.accent}20`,
+    ripple: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+  };
+}
 
 function AndroidTabItem({
   label,
@@ -443,51 +410,33 @@ function AndroidTabItem({
   iconFocused,
   focused,
   onPress,
+  expanded,
 }: {
   label: string;
-  icon: any;
-  iconFocused: any;
+  icon: IconName;
+  iconFocused: IconName;
   focused: boolean;
   onPress: () => void;
+  expanded?: boolean;
 }) {
-  const { isDark, colors } = useTheme();
-  const activeColor   = colors.accent;
-  const inactiveColor = isDark ? "rgba(255,255,255,0.50)" : "rgba(0,0,0,0.45)";
+  const c = useAndroidTabColors();
+  const color = focused ? c.active : c.inactive;
 
   return (
     <TouchableNativeFeedback
       onPress={onPress}
-      background={TouchableNativeFeedback.Ripple(
-        isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-        true
-      )}
+      background={TouchableNativeFeedback.Ripple(c.ripple, true)}
+      accessibilityRole="tab"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: focused, expanded }}
     >
       <View style={styles.androidTabItem}>
-        {focused && (
-          <View
-            style={[
-              styles.androidPillIndicator,
-              {
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.12)"
-                  : `${activeColor}20`,
-              },
-            ]}
-          />
-        )}
-        <Ionicons
-          name={focused ? iconFocused : icon}
-          size={22}
-          color={focused ? activeColor : inactiveColor}
-        />
+        {focused && <View style={[styles.androidPillIndicator, { backgroundColor: c.indicator }]} />}
+        <Ionicons name={focused ? iconFocused : icon} size={22} color={color} />
         <Text
-          style={[
-            styles.androidLabel,
-            {
-              color: focused ? activeColor : inactiveColor,
-              fontWeight: focused ? "600" : "400",
-            },
-          ]}
+          style={[styles.androidLabel, { color, fontWeight: focused ? "600" : "400" }]}
+          maxFontSizeMultiplier={LABEL_MAX_SCALE}
+          numberOfLines={1}
         >
           {label}
         </Text>
@@ -496,108 +445,34 @@ function AndroidTabItem({
   );
 }
 
-function AndroidAddTabItem({
-  focused,
-  onPress,
-}: {
-  focused: boolean;
-  onPress: () => void;
-}) {
+function AndroidAddTabItem({ focused, onPress }: { focused: boolean; onPress: () => void }) {
   const { isDark, colors } = useTheme();
   const { t } = useTranslation();
-  const activeColor = colors.accent;
+  const c = useAndroidTabColors();
 
   return (
     <TouchableNativeFeedback
       onPress={onPress}
-      background={TouchableNativeFeedback.Ripple(
-        isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-        true
-      )}
+      background={TouchableNativeFeedback.Ripple(c.ripple, true)}
+      accessibilityRole="tab"
+      accessibilityLabel={t("tabs.add")}
+      accessibilityState={{ selected: focused }}
     >
       <View style={styles.androidTabItem}>
         <View
           style={[
             styles.androidAddPill,
-            {
-              backgroundColor: focused
-                ? activeColor
-                : isDark
-                ? "rgba(255,255,255,0.10)"
-                : `${activeColor}18`,
-            },
+            { backgroundColor: focused ? c.active : isDark ? "rgba(255,255,255,0.10)" : `${c.active}18` },
           ]}
         >
-          <Ionicons name="add" size={22} color={focused ? "#fff" : activeColor} />
+          <Ionicons name="add" size={22} color={focused ? colors.onAccent : c.active} />
         </View>
         <Text
-          style={[
-            styles.androidLabel,
-            {
-              color: focused
-                ? activeColor
-                : isDark
-                ? "rgba(255,255,255,0.50)"
-                : "rgba(0,0,0,0.45)",
-              fontWeight: focused ? "600" : "400",
-            },
-          ]}
+          style={[styles.androidLabel, { color: focused ? c.active : c.inactive, fontWeight: focused ? "600" : "400" }]}
+          maxFontSizeMultiplier={LABEL_MAX_SCALE}
+          numberOfLines={1}
         >
           {t("tabs.add")}
-        </Text>
-      </View>
-    </TouchableNativeFeedback>
-  );
-}
-
-function AndroidMoreButton({
-  onPress,
-  isOpen,
-}: {
-  onPress: () => void;
-  isOpen: boolean;
-}) {
-  const { isDark, colors } = useTheme();
-  const { t } = useTranslation();
-  const activeColor   = colors.accent;
-  const inactiveColor = isDark ? "rgba(255,255,255,0.50)" : "rgba(0,0,0,0.45)";
-
-  return (
-    <TouchableNativeFeedback
-      onPress={onPress}
-      background={TouchableNativeFeedback.Ripple(
-        isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-        true
-      )}
-    >
-      <View style={styles.androidTabItem}>
-        {isOpen && (
-          <View
-            style={[
-              styles.androidPillIndicator,
-              {
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.12)"
-                  : `${activeColor}20`,
-              },
-            ]}
-          />
-        )}
-        <Ionicons
-          name="ellipsis-horizontal"
-          size={22}
-          color={isOpen ? activeColor : inactiveColor}
-        />
-        <Text
-          style={[
-            styles.androidLabel,
-            {
-              color: isOpen ? activeColor : inactiveColor,
-              fontWeight: isOpen ? "600" : "400",
-            },
-          ]}
-        >
-          {t("tabs.more")}
         </Text>
       </View>
     </TouchableNativeFeedback>
@@ -611,78 +486,47 @@ function AndroidMoreMenu({
 }: {
   visible: boolean;
   onClose: () => void;
-  onNavigate: (route: string) => void;
+  onNavigate: (route: (typeof MORE_ITEMS)[number]["route"]) => void;
 }) {
   const { isDark, colors } = useTheme();
   const { t } = useTranslation();
-  const insets      = useSafeAreaInsets();
-  const slideAnim   = useRef(new Animated.Value(200)).current;
-  const fadeAnim    = useRef(new Animated.Value(0)).current;
+  const insets       = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
+  const [slideAnim]  = useState(() => new Animated.Value(200));
+  const [fadeAnim]   = useState(() => new Animated.Value(0));
 
   useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          useNativeDriver: true,
-          damping: 20,
-          stiffness: 200,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 200,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-      ]).start();
+    if (!visible) return;
+    if (reduceMotion) {
+      slideAnim.setValue(0);
+      fadeAnim.setValue(1);
+      return;
     }
-  }, [visible]);
+    slideAnim.setValue(200);
+    fadeAnim.setValue(0);
+    Animated.parallel([
+      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 200 }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
+    ]).start();
+  }, [visible, reduceMotion, slideAnim, fadeAnim]);
 
   if (!visible) return null;
 
   return (
-    <Pressable
-      style={[StyleSheet.absoluteFill, { zIndex: 99 }]}
-      onPress={onClose}
-    >
-      <Animated.View
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: "rgba(0,0,0,0.32)", opacity: fadeAnim },
-        ]}
-      />
+    <Pressable style={[StyleSheet.absoluteFill, { zIndex: 99 }]} onPress={onClose} accessibilityLabel={t("common.close")}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.32)", opacity: fadeAnim }]} />
       <Animated.View
         style={[
           styles.androidMoreSheet,
           {
-            backgroundColor: isDark ? "#1c1c1e" : "#ffffff",
-            paddingBottom: insets.bottom + 80,
+            backgroundColor: colors.card,
+            paddingBottom: insets.bottom + ANDROID_TAB_BAR_HEIGHT + 16,
             transform: [{ translateY: slideAnim }],
           },
         ]}
+        accessibilityRole="menu"
       >
-        <View
-          style={[
-            styles.androidSheetHandle,
-            {
-              backgroundColor: isDark
-                ? "rgba(255,255,255,0.15)"
-                : "rgba(0,0,0,0.15)",
-            },
-          ]}
-        />
+        <View style={[styles.androidSheetHandle, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)" }]} />
         {MORE_ITEMS.map((item) => (
           <TouchableNativeFeedback
             key={item.route}
@@ -690,43 +534,15 @@ function AndroidMoreMenu({
               onClose();
               onNavigate(item.route);
             }}
-            background={TouchableNativeFeedback.Ripple(
-              isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
-              false
-            )}
+            background={TouchableNativeFeedback.Ripple(isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", false)}
+            accessibilityRole="menuitem"
           >
             <View style={styles.androidSheetRow}>
-              <View
-                style={[
-                  styles.androidSheetIconBox,
-                  {
-                    backgroundColor: isDark
-                      ? "rgba(255,255,255,0.08)"
-                      : `${colors.accent}15`,
-                  },
-                ]}
-              >
+              <View style={[styles.androidSheetIconBox, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : `${colors.accent}15` }]}>
                 <Ionicons name={item.icon} size={20} color={colors.accent} />
               </View>
-              <Text
-                style={[
-                  styles.androidSheetLabel,
-                  {
-                    color: isDark
-                      ? "rgba(255,255,255,0.87)"
-                      : "rgba(0,0,0,0.87)",
-                  },
-                ]}
-              >
-                {t(`tabs.${item.key}`)}
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={
-                  isDark ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.25)"
-                }
-              />
+              <Text style={[styles.androidSheetLabel, { color: colors.text }]}>{t(`tabs.${item.key}`)}</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </View>
           </TouchableNativeFeedback>
         ))}
@@ -735,17 +551,7 @@ function AndroidMoreMenu({
   );
 }
 
-function AndroidTabBar({
-  state,
-  navigation,
-  moreOpen,
-  onMorePress,
-}: {
-  state: any;
-  navigation: any;
-  moreOpen: boolean;
-  onMorePress: () => void;
-}) {
+function AndroidTabBar({ focusedName, navigate, moreOpen, onMorePress }: BarProps) {
   const { isDark, colors } = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -755,46 +561,37 @@ function AndroidTabBar({
       style={[
         styles.androidTabBar,
         {
-          backgroundColor: isDark ? "#1c1c1e" : "#ffffff",
+          backgroundColor: colors.card,
           paddingBottom: Math.max(insets.bottom, 8),
-          shadowColor: "#000",
+          shadowColor: colors.shadow,
           shadowOpacity: isDark ? 0.4 : 0.1,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: -2 },
-          elevation: 8,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: isDark
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(0,0,0,0.08)",
+          borderTopColor: colors.separator,
         },
       ]}
+      accessibilityRole="tablist"
     >
+      {MAIN_TABS.map((tab) =>
+        tab.name === "add" ? (
+          <AndroidAddTabItem key={tab.name} focused={focusedName === "add"} onPress={() => navigate("add")} />
+        ) : (
+          <AndroidTabItem
+            key={tab.name}
+            label={t(`tabs.${tab.key}`)}
+            icon={tab.icon}
+            iconFocused={tab.iconFocused}
+            focused={focusedName === tab.name}
+            onPress={() => navigate(tab.name)}
+          />
+        )
+      )}
       <AndroidTabItem
-        label={t("tabs.overview")}
-        icon="pie-chart-outline"
-        iconFocused="pie-chart"
-        focused={state.index === 0}
-        onPress={() => navigation.navigate("index")}
+        label={t("tabs.more")}
+        icon="ellipsis-horizontal"
+        iconFocused="ellipsis-horizontal"
+        focused={moreOpen || MORE_ROUTE_NAMES.includes(focusedName)}
+        expanded={moreOpen}
+        onPress={onMorePress}
       />
-      <AndroidTabItem
-        label={t("tabs.history")}
-        icon="time-outline"
-        iconFocused="time"
-        focused={state.index === 1}
-        onPress={() => navigation.navigate("history")}
-      />
-      <AndroidAddTabItem
-        focused={state.index === 2}
-        onPress={() => navigation.navigate("add")}
-      />
-      <AndroidTabItem
-        label={t("tabs.savings")}
-        icon="cash-outline"
-        iconFocused="cash"
-        focused={state.index === 3}
-        onPress={() => navigation.navigate("savings")}
-      />
-      <AndroidMoreButton onPress={onMorePress} isOpen={moreOpen} />
     </View>
   );
 }
@@ -806,30 +603,18 @@ function CustomTabBar({
   navigation,
   moreOpen,
   onMorePress,
-}: {
-  state: any;
-  navigation: any;
-  moreOpen: boolean;
-  onMorePress: () => void;
-}) {
-  if (Platform.OS === "ios") {
-    return (
-      <IOSTabBar
-        state={state}
-        navigation={navigation}
-        moreOpen={moreOpen}
-        onMorePress={onMorePress}
-      />
-    );
-  }
-  return (
-    <AndroidTabBar
-      state={state}
-      navigation={navigation}
-      moreOpen={moreOpen}
-      onMorePress={onMorePress}
-    />
-  );
+  onNavigate,
+}: TabBarProps & { moreOpen: boolean; onMorePress: () => void; onNavigate: () => void }) {
+  const barProps: BarProps = {
+    focusedName: state.routes[state.index]?.name ?? "index",
+    navigate: (name) => {
+      onNavigate();
+      navigation.navigate(name);
+    },
+    moreOpen,
+    onMorePress,
+  };
+  return Platform.OS === "ios" ? <IOSTabBar {...barProps} /> : <AndroidTabBar {...barProps} />;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -837,9 +622,21 @@ function CustomTabBar({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function TabLayout() {
-  const router     = useRouter();
+  const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
   const { t } = useTranslation();
+
+  // Android back closes the More menu instead of leaving the app (B-9).
+  useEffect(() => {
+    if (!moreOpen) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      setMoreOpen(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [moreOpen]);
+
+  const MoreMenuForPlatform = Platform.OS === "ios" ? MoreMenu : AndroidMoreMenu;
 
   return (
     <>
@@ -850,6 +647,7 @@ export default function TabLayout() {
             {...props}
             moreOpen={moreOpen}
             onMorePress={() => setMoreOpen((v) => !v)}
+            onNavigate={() => setMoreOpen(false)}
           />
         )}
       >
@@ -861,21 +659,11 @@ export default function TabLayout() {
         <Tabs.Screen name="settings" options={{ title: t("tabs.settings") }} />
       </Tabs>
 
-      {Platform.OS === "ios" && (
-        <MoreMenu
-          visible={moreOpen}
-          onClose={() => setMoreOpen(false)}
-          onNavigate={(route) => router.push(route as any)}
-        />
-      )}
-
-      {Platform.OS === "android" && (
-        <AndroidMoreMenu
-          visible={moreOpen}
-          onClose={() => setMoreOpen(false)}
-          onNavigate={(route) => router.push(route as any)}
-        />
-      )}
+      <MoreMenuForPlatform
+        visible={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        onNavigate={(route) => router.push(route)}
+      />
     </>
   );
 }
@@ -890,7 +678,6 @@ const styles = StyleSheet.create({
   // ── iOS Styles ──────────────────────────────────────────────────────────────
   iosTabBarOuter: {
     position: "absolute",
-    bottom: TAB_BAR_BOTTOM_IOS,
     left: 20,
     right: 20,
     height: TAB_BAR_HEIGHT,
@@ -966,6 +753,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     // overflow: "hidden" отстрането — GlassView сам клипира
     minWidth: 150,
+    minHeight: 48,
   },
   moreItemBorder: {
     ...StyleSheet.absoluteFill,
@@ -988,6 +776,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 8,
     zIndex: 50,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -2 },
+    elevation: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   androidTabItem: {
     flex: 1,
@@ -1014,7 +806,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   androidLabel: {
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 0.1,
     textAlign: "center",
   },
@@ -1026,7 +818,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 12,
-    paddingHorizontal: 0,
   },
   androidSheetHandle: {
     width: 36,
