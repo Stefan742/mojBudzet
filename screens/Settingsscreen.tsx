@@ -15,7 +15,8 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAppStore } from "../store/useAppStore";
 import { useTheme } from "../hooks/useTheme";
-import { Category } from "../models";
+import { Category, incomeForMonth, monthKey } from "../models";
+import { MAX_AMOUNT_MKD, formatWholeDenars, parseWholeDenars } from "../utils/money";
 import { v4 as uuid } from "uuid";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -26,6 +27,12 @@ export default function SettingsScreen() {
   const categories     = useAppStore((s) => s.categories);
   const currency       = useAppStore((s) => s.currency);
   const initialBalance = useAppStore((s) => s.initialBalance);
+  const setInitialBalance = useAppStore((s) => s.setInitialBalance);
+  const setMonthlyIncome  = useAppStore((s) => s.setMonthlyIncome);
+  // Read through a selector so it is re-evaluated on every render;
+  // React Compiler would cache a plain `new Date()` in render.
+  const thisMonth      = useAppStore(() => monthKey(new Date()));
+  const monthlyIncome  = useAppStore((s) => incomeForMonth(s.incomeSchedule, thisMonth));
   const deleteCategory = useAppStore((s) => s.deleteCategory);
   const storedTheme    = useAppStore((s) => s.theme);
   const setTheme       = useAppStore((s) => s.setTheme);
@@ -39,7 +46,12 @@ export default function SettingsScreen() {
   const [bankSyncing, setBankSyncing]   = useState(false);
   const [bankMessage, setBankMessage]   = useState<string | null>(null);
   const [currencyText, setCurrencyText] = useState(currency);
-  const [balanceText, setBalanceText]   = useState(String(initialBalance));
+
+  const [year, month] = thisMonth.split("-").map(Number);
+  const monthLabel = new Date(year, month - 1, 1).toLocaleString(
+    currentLang === "en" ? "en-US" : "mk-MK",
+    { month: "long", year: "numeric" }
+  );
 
   const handleDeleteCategory = (id: string) => {
     Alert.alert(t("common.delete"), t("history.confirm"), [
@@ -112,16 +124,20 @@ export default function SettingsScreen() {
               />
             </View>
             <View style={[styles.sep, d.sep]} />
-            <View style={styles.row}>
-              <Text style={[styles.rowLabel, d.rowLabel]}>{t("settings.startBalance")}</Text>
-              <TextInput
-                style={[styles.rowInput, d.rowInput]}
-                value={balanceText}
-                onChangeText={setBalanceText}
-                keyboardType="decimal-pad"
-                placeholderTextColor={colors.textTertiary}
-              />
-            </View>
+            <AmountRow
+              label={t("settings.startBalance")}
+              value={initialBalance}
+              allowZero
+              onSave={setInitialBalance}
+            />
+            <View style={[styles.sep, d.sep]} />
+            <AmountRow
+              label={t("settings.monthlyIncome")}
+              value={monthlyIncome}
+              placeholder={t("settings.notSet")}
+              hint={t("settings.monthlyIncomeHint", { month: monthLabel })}
+              onSave={setMonthlyIncome}
+            />
           </View>
         </View>
 
@@ -296,6 +312,69 @@ export default function SettingsScreen() {
           onClose={() => setNewCategory(null)}
         />
       )}
+    </View>
+  );
+}
+
+// ─── Amount Row ────────────────────────────────────────────────────────────────
+
+/** Editable whole-denar amount; validates and saves when editing ends. */
+function AmountRow({
+  label,
+  value,
+  placeholder,
+  hint,
+  allowZero = false,
+  onSave,
+}: {
+  label: string;
+  value: number;
+  placeholder?: string;
+  hint?: string;
+  allowZero?: boolean;
+  onSave: (amount: number) => void;
+}) {
+  const { t }      = useTranslation();
+  const { colors } = useTheme();
+  const [text, setText]   = useState(value > 0 || allowZero ? formatWholeDenars(value) : "");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleEndEditing = () => {
+    // Leaving an unset field empty is fine; it just stays unset.
+    if (!allowZero && value === 0 && text.trim() === "") return;
+    const amount = parseWholeDenars(text);
+    if (amount === null) return setError(t("settings.amountErrors.format"));
+    if (amount === 0 && !allowZero) return setError(t("settings.amountErrors.positive"));
+    if (amount > MAX_AMOUNT_MKD) {
+      return setError(t("settings.amountErrors.tooLarge", { max: formatWholeDenars(MAX_AMOUNT_MKD) }));
+    }
+    setText(formatWholeDenars(amount));
+    if (amount !== value) onSave(amount);
+  };
+
+  const footer = error ?? hint;
+
+  return (
+    <View>
+      <View style={styles.row}>
+        <Text style={[styles.rowLabel, { color: colors.text }]}>{label}</Text>
+        <TextInput
+          style={[styles.rowInput, { color: colors.accent }]}
+          value={text}
+          onChangeText={(v) => { setText(v); setError(null); }}
+          onEndEditing={handleEndEditing}
+          keyboardType="number-pad"
+          placeholder={placeholder}
+          placeholderTextColor={colors.textTertiary}
+          accessibilityLabel={label}
+          accessibilityHint={footer}
+        />
+      </View>
+      {footer ? (
+        <Text style={[styles.rowFooter, { color: error ? colors.destructive : colors.textTertiary }]}>
+          {footer}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -509,6 +588,7 @@ const styles = StyleSheet.create({
   rowLabel:  { fontSize: 16, flex: 1 },
   rowInput:  { fontSize: 16, textAlign: "right", minWidth: 80 },
   rowValue:  { fontSize: 16 },
+  rowFooter: { fontSize: 12, lineHeight: 16, paddingHorizontal: 16, marginTop: -6, paddingBottom: 12 },
   sep:       { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
   catRow: {
     flexDirection: "row", alignItems: "center",

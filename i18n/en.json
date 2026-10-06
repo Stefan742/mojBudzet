@@ -154,6 +154,14 @@
     "general":     "GENERAL",
     "currency":    "Currency",
     "startBalance":"Starting balance",
+    "monthlyIncome":"Monthly income",
+    "monthlyIncomeHint":"Applies from {{month}}. Earlier months stay as they were.",
+    "notSet":"Not set",
+    "amountErrors": {
+      "format":"Enter a whole amount in denars, e.g. 25 000",
+      "positive":"The amount must be greater than 0",
+      "tooLarge":"The amount is too large (max {{max}})"
+    },
     "appearance":  "APPEARANCE",
     "language":    "LANGUAGE",
     "light":       "Light",

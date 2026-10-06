@@ -8,6 +8,8 @@ import {
   TransactionKind,
   CategoryBudget,
   SavingsGoal,
+  monthKey,
+  withIncomeFrom,
 } from "../models";
 import { defaultCategories } from "../models/Category";
 import { dedupeCategoryIds } from "./migrations";
@@ -41,6 +43,8 @@ interface MutationActions {
   updateGoal: (g: SavingsGoal) => void;
   deleteGoal: (id: string) => void;
   setInitialBalance: (balance: number) => void;
+  /** Sets the monthly income from the current month onward (whole MKD). */
+  setMonthlyIncome: (amount: number) => void;
   applyBudgetSuggestions: (
     suggestions: { categoryId: string; suggestedMonthlyLimit: number }[]
   ) => void;
@@ -62,6 +66,7 @@ export type AppStoreState = PersistedState &
 const initialState: PersistedState & { language: string } = {
   isOnboarded: false,
   initialBalance: 0,
+  incomeSchedule: [],
   categories: defaultCategories,
   transactions: [],
   budgets: [],
@@ -158,6 +163,11 @@ export const useAppStore = create<AppStoreState>()(
 
       setInitialBalance: (balance: number) =>
         set({ initialBalance: balance }),
+
+      setMonthlyIncome: (amount: number) =>
+        set((s) => ({
+          incomeSchedule: withIncomeFrom(s.incomeSchedule, monthKey(new Date()), amount),
+        })),
 
       addTransaction: (t: Transaction) =>
         set((s) => ({ transactions: [t, ...s.transactions] })),

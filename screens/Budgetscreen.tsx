@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 
 import { useAppStore } from "../store/useAppStore";
 import { formatAmount } from "../utils/helpers";
-import { Category } from "../models";
+import { Category, incomeForMonth, monthKey } from "../models";
 import {
   generateBudgetSuggestion,
   BudgetSuggestion,
@@ -39,16 +39,15 @@ export default function BudgetScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const categories             = useAppStore((s) => s.categories);
-  const initialBalance         = useAppStore((s) => s.initialBalance);
+  // monthKey(new Date()) inside the selector so it is never a cached render value.
+  const monthlyIncome          = useAppStore((s) => incomeForMonth(s.incomeSchedule, monthKey(new Date())));
   const transactions           = useAppStore((s) => s.transactions);
   const applyBudgetSuggestions = useAppStore((s) => s.applyBudgetSuggestions);
   const insets                 = useSafeAreaInsets();
 
   // Suggestion modal state
   const [modalVisible, setModalVisible] = useState(false);
-  const [incomeText, setIncomeText]     = useState(
-    initialBalance > 0 ? String(Math.round(initialBalance)) : ""
-  );
+  const [incomeText, setIncomeText]     = useState("");
   const [suggestions, setSuggestions]   = useState<BudgetSuggestion[]>([]);
   const [step, setStep]                 = useState<"income" | "preview">("income");
 
@@ -104,7 +103,11 @@ export default function BudgetScreen() {
             <Text style={[styles.headerSub, { color: colors.textSecondary }]}>{t("budget.subtitle")}</Text>
             <TouchableOpacity
               style={[styles.aiBtn, { backgroundColor: colors.accent }]}
-              onPress={() => setModalVisible(true)}
+              onPress={() => {
+                // Pre-fill with the monthly income from Settings at the moment the modal opens.
+                setIncomeText(monthlyIncome > 0 ? String(monthlyIncome) : "");
+                setModalVisible(true);
+              }}
               activeOpacity={0.82}
             >
               <Ionicons name="sparkles" size={15} color="#fff" />

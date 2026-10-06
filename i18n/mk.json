@@ -154,6 +154,14 @@
     "general":     "ОПШТО",
     "currency":    "Валута",
     "startBalance":"Почетна сума",
+    "monthlyIncome":"Месечен приход",
+    "monthlyIncomeHint":"Важи од {{month}}. Претходните месеци остануваат исти.",
+    "notSet":"Не е внесено",
+    "amountErrors": {
+      "format":"Внеси цел износ во денари, на пр. 25 000",
+      "positive":"Износот мора да е поголем од 0",
+      "tooLarge":"Износот е преголем (најмногу {{max}})"
+    },
     "appearance":  "ИЗГЛЕД",
     "language":    "ЈАЗИК",
     "light":       "Light",
