@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -71,7 +70,7 @@ export default function OnboardingScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.card }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior="padding"
     >
       <ScrollView
         contentContainerStyle={[
@@ -79,10 +78,11 @@ export default function OnboardingScreen() {
           { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 24 },
         ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
       >
         <View style={styles.top}>
           <Ionicons name="cash" size={72} color="#4CAF50" />
-          <Text style={[styles.title, { color: colors.text }]}>{t("onboarding.title")}</Text>
+          <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">{t("onboarding.title")}</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             {t("onboarding.subtitle")}
           </Text>
@@ -103,6 +103,7 @@ export default function OnboardingScreen() {
                   textAlign="right"
                   autoFocus={i === 0}
                   accessibilityLabel={f.label}
+                  accessibilityHint={f.error ?? f.hint}
                 />
                 <Text style={[styles.currency, { color: colors.textSecondary }]}>
                   {t("common.currency")}
@@ -130,7 +131,7 @@ export default function OnboardingScreen() {
           disabled={!balanceText}
           accessibilityRole="button"
         >
-          <Text style={styles.buttonText}>{t("onboarding.continue")}</Text>
+          <Text style={[styles.buttonText, { color: colors.onAccent }]}>{t("onboarding.continue")}</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -203,7 +204,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   buttonText: {
-    color: "#fff",
     fontSize: 17,
     fontWeight: "600",
   },
