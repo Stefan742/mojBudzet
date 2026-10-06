@@ -105,7 +105,7 @@ export default function OnboardingScreen() {
                   accessibilityLabel={f.label}
                 />
                 <Text style={[styles.currency, { color: colors.textSecondary }]}>
-                  {t("budget.modal.currency")}
+                  {t("common.currency")}
                 </Text>
               </View>
               <Text

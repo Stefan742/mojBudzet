@@ -80,14 +80,13 @@
     "title": "Budget",
     "subtitle": "Monthly limits per category",
     "aiSuggest": "AI Budget Suggestion",
-    "footer": "Set a limit for each category. You will be warned when you approach the limit.",
+    "footer": "Set a limit for each category. You will see a warning once you have spent 80% of it. Enter 0 to remove a limit.",
     "setLimit": "Set",
     "monthlyLimit": "Monthly limit",
     "modal": {
       "title": "AI Budget Suggestion",
       "question": "What is your monthly income?",
       "sub": "We will split it by the 50/25/15/10 rule across your categories.",
-      "currency": "MKD",
       "generate": "Generate suggestion →",
       "preview": "Review the suggestions and apply them with one tap.",
       "back": "← Back",
@@ -100,7 +99,13 @@
       "savings": "Savings 15%",
       "emergency": "Emergency 10%",
       "debt": "Debt"
-    }
+    },
+    "noCategories": "No categories",
+    "noCategoriesSub": "Add a category in Settings to set a budget.",
+    "overLimit": "Over the limit by {{amount}}",
+    "nearLimit": "Close to the limit: {{amount}} left",
+    "limitFor": "Monthly limit for {{name}}",
+    "setLimitFor": "Set limit for {{name}}"
   },
   "savings": {
     "title": "Savings",
@@ -237,7 +242,8 @@
     "yes": "Yes",
     "no": "No",
     "currency": "MKD",
-    "loading": "Loading"
+    "loading": "Loading",
+    "close": "Close"
   },
   "categories": {
     "cat-needs": "Needs",
