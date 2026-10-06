@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -10,83 +10,111 @@ import {
   ScrollView,
   Alert,
   KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
-import { useAppStore } from "../store/useAppStore";
-import { formatAmount, formatDate } from "../utils/helpers";
-import { Transaction, TransactionKind } from "../models";
-import { findCategory, findSubcategory } from "../store/selectors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppStore } from "../store/useAppStore";
+import { findCategory, findSubcategory } from "../store/selectors";
+import { Transaction, TransactionKind, TransactionSource, categoryLabel } from "../models";
+import { formatMoney } from "../utils/money";
+import { formatDate } from "../utils/dates";
 import { useTheme } from "@/hooks/useTheme";
+import { useAmountField } from "@/hooks/useAmountField";
+import { ModalHeader } from "@/components/ModalHeader";
+import { DateField } from "@/components/DateField";
+import { ChipRow } from "@/components/ChipRow";
+import { CategoryIcon } from "@/components/CategoryIcon";
+import { MIN_TOUCH, useTabBarSpace } from "@/constants/layout";
+
+// Stored source values are Macedonian; show them translated (I-4).
+const SOURCE_KEY: Record<TransactionSource, string> = {
+  "Рачно": "history.source.manual",
+  "QR": "history.source.qr",
+  "Банка": "history.source.bank",
+};
+
+const NONE = "__none__";
 
 export default function HistoryScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors } = useTheme();
-  const transactions = useAppStore((s) => s.transactions);
-  const deleteTransaction = useAppStore((s) => s.deleteTransaction);
-  const updateTransaction = useAppStore((s) => s.updateTransaction);
-  const categories = useAppStore((s) => s.categories);
+  const insets = useSafeAreaInsets();
+  const bottomSpace = useTabBarSpace();
   const currency = t("common.currency");
 
-  const [search, setSearch] = useState("");
+  const transactions      = useAppStore((s) => s.transactions);
+  const categories        = useAppStore((s) => s.categories);
+  const savingsGoals      = useAppStore((s) => s.savingsGoals);
+  const deleteTransaction = useAppStore((s) => s.deleteTransaction);
+  const updateTransaction = useAppStore((s) => s.updateTransaction);
+
+  const [search, setSearch]   = useState("");
   const [editing, setEditing] = useState<Transaction | null>(null);
 
-  const insets = useSafeAreaInsets();
-
-  const filtered = search.trim()
-    ? transactions.filter(
-        (t) =>
-          t.merchant.toLowerCase().includes(search.toLowerCase()) ||
-          t.note?.toLowerCase().includes(search.toLowerCase())
-      )
-    : transactions;
-
-  const handleDelete = (id: string) => {
-    Alert.alert(t("history.delete"), t("history.confirm"), [
-      { text: t("history.cancel"), style: "cancel" },
-      {
-        text: t("history.delete"),
-        style: "destructive",
-        onPress: () => deleteTransaction(id),
-      },
-    ]);
-  };
-
-  const savingsGoals = useAppStore((s) => s.savingsGoals);
   const rowTitle = (tx: Transaction) => {
     if (tx.kind !== TransactionKind.SAVINGS) return tx.merchant;
     const goal = savingsGoals.find((g) => g.id === tx.goalId);
     return goal ? t("history.savedToGoal", { name: goal.name }) : t("history.savedToVault");
   };
 
-  const renderItem = ({ item: tx }: { item: Transaction }) => {
+  const query = search.trim().toLowerCase();
+  const filtered = query
+    ? transactions.filter((tx) => {
+        const cat = findCategory(categories, tx.categoryId);
+        return [rowTitle(tx), tx.note ?? "", cat ? categoryLabel(cat, t) : ""]
+          .some((field) => field.toLowerCase().includes(query));
+      })
+    : transactions;
+
+  const confirmDeleteSavings = (tx: Transaction) =>
+    Alert.alert(t("history.delete"), t("history.confirmDeleteSavings"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.delete"), style: "destructive", onPress: () => deleteTransaction(tx.id) },
+    ]);
+
+  const renderItem = ({ item: tx, index }: { item: Transaction; index: number }) => {
     const cat = findCategory(categories, tx.categoryId);
     const sub = findSubcategory(categories, tx.categoryId, tx.subcategoryId);
+    const isSavings = tx.kind === TransactionKind.SAVINGS;
+    const sign = tx.kind === TransactionKind.INCOME ? "+" : "-";
+    const amountColor =
+      tx.kind === TransactionKind.INCOME ? colors.success : isSavings ? colors.vault : colors.destructive;
+    const amountText = `${sign}${formatMoney(tx.amount, currency)}`;
+    const dateText = formatDate(tx.date, i18n.language);
+    const tags = [cat && categoryLabel(cat, t), sub && categoryLabel(sub, t)].filter(Boolean).join(" · ");
 
     return (
       <TouchableOpacity
-        style={[styles.row, { backgroundColor: colors.card }]}
-        onPress={() => setEditing({ ...tx })}
+        style={[
+          styles.row,
+          { backgroundColor: colors.card },
+          index === 0 && styles.rowFirst,
+          index === filtered.length - 1 && styles.rowLast,
+        ]}
+        onPress={() => (isSavings ? confirmDeleteSavings(tx) : setEditing(tx))}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={[rowTitle(tx), tags, dateText, amountText].filter(Boolean).join(", ")}
+        accessibilityHint={isSavings ? t("a11y.deleteHint") : t("a11y.editHint")}
       >
-        <View style={[styles.iconCircle, { backgroundColor: cat ? `${cat.colorHex}33` : colors.inputBg }]}>
-          <Ionicons name="receipt-outline" size={20} color={cat?.colorHex ?? colors.textTertiary} />
+        <View style={[styles.iconCircle, { backgroundColor: isSavings ? colors.vaultBg : cat ? `${cat.colorHex}33` : colors.inputBg }]}>
+          {isSavings ? (
+            <Ionicons name="lock-closed" size={18} color={colors.vault} />
+          ) : (
+            <CategoryIcon iconName={cat?.iconName ?? "receipt-outline"} size={20} color={cat?.colorHex ?? colors.textSecondary} />
+          )}
         </View>
         <View style={styles.rowInfo}>
-          <Text style={[styles.merchant, { color: colors.text }]}>{rowTitle(tx)}</Text>
-          <View style={styles.tags}>
-            {cat && <Text style={[styles.tag, { color: colors.textSecondary }]}>{cat.name}</Text>}
-            {sub && <Text style={[styles.tag, { color: colors.textSecondary }]}>· {sub.name}</Text>}
-          </View>
-          <Text style={[styles.date, { color: colors.textTertiary }]}>{formatDate(tx.date)}</Text>
+          <Text style={[styles.merchant, { color: colors.text }]} numberOfLines={1}>{rowTitle(tx)}</Text>
+          {tags ? <Text style={[styles.tag, { color: colors.textSecondary }]} numberOfLines={1}>{tags}</Text> : null}
+          <Text style={[styles.date, { color: colors.textTertiary }]}>{dateText}</Text>
         </View>
         <View style={styles.rowRight}>
-          <Text style={[styles.amount, tx.kind === TransactionKind.INCOME ? styles.income : styles.expense]}>
-            {tx.kind === TransactionKind.INCOME ? "+" : "-"}{formatAmount(tx.amount, currency)}
-          </Text>
-          <Text style={[styles.source, { color: colors.textTertiary }]}>{tx.source}</Text>
+          <Text style={[styles.amount, { color: amountColor }]}>{amountText}</Text>
+          {!isSavings && (
+            <Text style={[styles.source, { color: colors.textTertiary }]}>{t(SOURCE_KEY[tx.source] ?? SOURCE_KEY["Рачно"])}</Text>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -95,11 +123,13 @@ export default function HistoryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>{t("history.title")}</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]} accessibilityRole="header">
+          {t("history.title")}
+        </Text>
       </View>
 
       <View style={[styles.searchBar, { backgroundColor: colors.card }]}>
-        <Ionicons name="search" size={18} color={colors.textTertiary} />
+        <Ionicons name="search" size={18} color={colors.textSecondary} />
         <TextInput
           style={[styles.searchInput, { color: colors.text }]}
           placeholder={t("history.searchPlaceholder")}
@@ -107,34 +137,38 @@ export default function HistoryScreen() {
           value={search}
           onChangeText={setSearch}
           clearButtonMode="while-editing"
+          returnKeyType="search"
+          accessibilityLabel={t("history.searchPlaceholder")}
         />
       </View>
 
-      {filtered.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="list-outline" size={60} color={colors.separator} />
-          <Text style={[styles.emptyText, { color: colors.textTertiary }]}>{t("history.noItems")}</Text>
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 140 }}>
-          <View style={[styles.listCard, { backgroundColor: colors.card }]}>
-            <FlatList
-              data={filtered}
-              keyExtractor={(tx) => tx.id}
-              renderItem={renderItem}
-              ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.separator }]} />}
-              scrollEnabled={false}
-            />
+      {/* The list itself scrolls and is virtualized (P-1). extraData refreshes
+          rows when a category or goal is renamed (B-17). */}
+      <FlatList
+        data={filtered}
+        keyExtractor={(tx) => tx.id}
+        renderItem={renderItem}
+        extraData={[categories, savingsGoals, i18n.language]}
+        ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.separator }]} />}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: bottomSpace }}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Ionicons name={query ? "search-outline" : "list-outline"} size={60} color={colors.separator} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              {query ? t("history.noResults") : t("history.noItems")}
+            </Text>
           </View>
-        </ScrollView>
-      )}
+        }
+      />
 
       {editing && (
         <TransactionEditorModal
           transaction={editing}
           onClose={() => setEditing(null)}
           onSave={(tx) => { updateTransaction(tx); setEditing(null); }}
-          onDelete={(id) => { handleDelete(id); setEditing(null); }}
+          onDelete={(id) => { deleteTransaction(id); setEditing(null); }}
         />
       )}
     </View>
@@ -149,39 +183,58 @@ interface EditorProps {
   onDelete: (id: string) => void;
 }
 
-function TransactionEditorModal({
-  transaction,
-  onClose,
-  onSave,
-  onDelete,
-}: EditorProps) {
+function TransactionEditorModal({ transaction, onClose, onSave, onDelete }: EditorProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const categories = useAppStore((s) => s.categories);
   const currency = t("common.currency");
 
   const [tx, setTx] = useState<Transaction>(transaction);
+  const [merchantError, setMerchantError] = useState(false);
+  const amount = useAmountField(transaction.amount);
   const selectedCat = findCategory(categories, tx.categoryId);
+  const date = useMemo(() => new Date(tx.date), [tx.date]);
+
+  const handleSave = () => {
+    const value = amount.parse();
+    const hasMerchant = tx.merchant.trim().length > 0;
+    setMerchantError(!hasMerchant);
+    if (value === null || !hasMerchant) return;
+    onSave({ ...tx, merchant: tx.merchant.trim(), amount: value });
+  };
+
+  // Confirm while the sheet is still open, then close: presenting an alert
+  // during the sheet's dismissal can drop it on iOS (B-8).
+  const handleDelete = () =>
+    Alert.alert(t("history.delete"), t("history.confirm"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.delete"), style: "destructive", onPress: () => onDelete(tx.id) },
+    ]);
+
+  const handleDateChange = (picked: Date) => {
+    // Keep the original time of day; only the day changes.
+    const next = new Date(date);
+    next.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
+    setTx({ ...tx, date: next.toISOString() });
+  };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet">
-      <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: colors.background }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <View style={[styles.modalHeader, { backgroundColor: colors.background, borderBottomColor: colors.separator }]}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={[styles.cancelBtn, { color: colors.destructive }]}>{t("history.cancel")}</Text>
-          </TouchableOpacity>
-          <Text style={[styles.modalTitle, { color: colors.text }]}>{t("history.edit")}</Text>
-          <TouchableOpacity onPress={() => onSave(tx)}>
-            <Text style={[styles.saveBtn, { color: colors.accent }]}>{t("history.save")}</Text>
-          </TouchableOpacity>
-        </View>
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior="padding">
+        <ModalHeader
+          title={t("history.edit")}
+          cancelLabel={t("history.cancel")}
+          saveLabel={t("history.save")}
+          onCancel={onClose}
+          onSave={handleSave}
+        />
 
         <ScrollView
-          style={[styles.modalScroll, { backgroundColor: colors.background }]}
+          style={styles.modalScroll}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         >
           {/* ── BASIC ── */}
           <View style={styles.section}>
@@ -194,35 +247,53 @@ function TransactionEditorModal({
                 placeholder={t("history.merchant")}
                 placeholderTextColor={colors.textTertiary}
                 value={tx.merchant}
-                onChangeText={(v) => setTx({ ...tx, merchant: v })}
+                onChangeText={(v) => { setTx({ ...tx, merchant: v }); setMerchantError(false); }}
+                returnKeyType="next"
+                accessibilityLabel={t("history.merchant")}
               />
+              {merchantError && (
+                <Text style={[styles.fieldError, { color: colors.destructive }]}>{t("history.merchantRequired")}</Text>
+              )}
               <View style={[styles.inputSep, { backgroundColor: colors.separator }]} />
               <View style={styles.editRow}>
                 <Text style={[styles.label, { color: colors.text }]}>{t("history.amount")}</Text>
                 <TextInput
                   style={[styles.input, { flex: 1, textAlign: "right", color: colors.text }]}
-                  value={String(tx.amount)}
-                  onChangeText={(v) => setTx({ ...tx, amount: parseFloat(v) || 0 })}
-                  keyboardType="decimal-pad"
+                  value={amount.text}
+                  onChangeText={amount.onChangeText}
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="number-pad"
+                  accessibilityLabel={t("history.amount")}
                 />
                 <Text style={[styles.currency, { color: colors.textSecondary }]}>{currency}</Text>
               </View>
+              {amount.errorText && (
+                <Text style={[styles.fieldError, { color: colors.destructive }]}>{amount.errorText}</Text>
+              )}
               <View style={[styles.inputSep, { backgroundColor: colors.separator }]} />
-              <View style={[styles.segmentContainer, { backgroundColor: colors.inputBg }]}>
+              <DateField label={t("history.date")} value={date} onChange={handleDateChange} />
+              <View style={[styles.inputSep, { backgroundColor: colors.separator }]} />
+              <View style={[styles.segmentContainer, { backgroundColor: colors.inputBg }]} accessibilityRole="radiogroup">
                 {[
                   { label: t("history.expense"), value: TransactionKind.EXPENSE },
                   { label: t("history.income"),  value: TransactionKind.INCOME  },
-                ].map((k) => (
-                  <TouchableOpacity
-                    key={k.value}
-                    style={[styles.segment, tx.kind === k.value && { backgroundColor: colors.accent }]}
-                    onPress={() => setTx({ ...tx, kind: k.value })}
-                  >
-                    <Text style={[styles.segmentText, { color: tx.kind === k.value ? "#fff" : colors.textSecondary }]}>
-                      {k.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                ].map((k) => {
+                  const selected = tx.kind === k.value;
+                  return (
+                    <TouchableOpacity
+                      key={k.value}
+                      style={[styles.segment, selected && { backgroundColor: colors.accent }]}
+                      onPress={() => setTx({ ...tx, kind: k.value })}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                    >
+                      <Text style={[styles.segmentText, { color: selected ? colors.onAccent : colors.textSecondary }]}>
+                        {k.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           </View>
@@ -233,58 +304,32 @@ function TransactionEditorModal({
               {t("history.sections.category")}
             </Text>
             <View style={[styles.card, { backgroundColor: colors.card }]}>
-              <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>
-                {t("history.category")}
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                <TouchableOpacity
-                  style={[styles.chip, { backgroundColor: !tx.categoryId ? colors.accent : colors.inputBg }]}
-                  onPress={() => setTx({ ...tx, categoryId: undefined, subcategoryId: undefined })}
-                >
-                  <Text style={[styles.chipText, { color: !tx.categoryId ? "#fff" : colors.text }]}>
-                    {t("history.without")}
-                  </Text>
-                </TouchableOpacity>
-                {categories.map((c) => (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={[styles.chip, { backgroundColor: tx.categoryId === c.id ? c.colorHex : colors.inputBg }]}
-                    onPress={() => setTx({ ...tx, categoryId: c.id, subcategoryId: undefined })}
-                  >
-                    <Text style={[styles.chipText, { color: tx.categoryId === c.id ? "#fff" : colors.text }]}>
-                      {c.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>{t("history.category")}</Text>
+              <ChipRow
+                accessibilityLabel={t("history.category")}
+                chips={[
+                  { key: NONE, label: t("history.without") },
+                  ...categories.map((c) => ({ key: c.id, label: categoryLabel(c, t), color: c.colorHex })),
+                ]}
+                selectedKey={tx.categoryId ?? NONE}
+                onSelect={(key) =>
+                  setTx({ ...tx, categoryId: key === NONE ? undefined : key, subcategoryId: undefined })
+                }
+              />
 
               {selectedCat && selectedCat.subcategories.length > 0 && (
                 <>
                   <View style={[styles.inputSep, { backgroundColor: colors.separator }]} />
-                  <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>
-                    {t("history.subcategory")}
-                  </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                    <TouchableOpacity
-                      style={[styles.chip, { backgroundColor: !tx.subcategoryId ? colors.accent : colors.inputBg }]}
-                      onPress={() => setTx({ ...tx, subcategoryId: undefined })}
-                    >
-                      <Text style={[styles.chipText, { color: !tx.subcategoryId ? "#fff" : colors.text }]}>
-                        {t("history.without")}
-                      </Text>
-                    </TouchableOpacity>
-                    {selectedCat.subcategories.map((s) => (
-                      <TouchableOpacity
-                        key={s.id}
-                        style={[styles.chip, { backgroundColor: tx.subcategoryId === s.id ? colors.accent : colors.inputBg }]}
-                        onPress={() => setTx({ ...tx, subcategoryId: s.id })}
-                      >
-                        <Text style={[styles.chipText, { color: tx.subcategoryId === s.id ? "#fff" : colors.text }]}>
-                          {s.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                  <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>{t("history.subcategory")}</Text>
+                  <ChipRow
+                    accessibilityLabel={t("history.subcategory")}
+                    chips={[
+                      { key: NONE, label: t("history.without") },
+                      ...selectedCat.subcategories.map((s) => ({ key: s.id, label: categoryLabel(s, t) })),
+                    ]}
+                    selectedKey={tx.subcategoryId ?? NONE}
+                    onSelect={(key) => setTx({ ...tx, subcategoryId: key === NONE ? undefined : key })}
+                  />
                 </>
               )}
             </View>
@@ -303,13 +348,15 @@ function TransactionEditorModal({
                 value={tx.note}
                 onChangeText={(v) => setTx({ ...tx, note: v })}
                 multiline
+                accessibilityLabel={t("history.sections.note")}
               />
             </View>
           </View>
 
           <TouchableOpacity
             style={[styles.deleteButton, { backgroundColor: colors.card }]}
-            onPress={() => onDelete(tx.id)}
+            onPress={handleDelete}
+            accessibilityRole="button"
           >
             <Ionicons name="trash" size={18} color={colors.destructive} />
             <Text style={[styles.deleteText, { color: colors.destructive }]}>{t("history.delete")}</Text>
@@ -321,123 +368,47 @@ function TransactionEditorModal({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f2f2f7" },
+  container: { flex: 1 },
+  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
+  headerTitle: { fontSize: 34, fontWeight: "700", letterSpacing: 0.3 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
     margin: 12,
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    minHeight: MIN_TOUCH,
     gap: 8,
   },
-  searchInput: { flex: 1, fontSize: 16, color: "#000" },
-  empty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    paddingTop: 80,
-  },
-  emptyText: { fontSize: 18, color: "#999" },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-  },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  searchInput: { flex: 1, fontSize: 16, paddingVertical: 10 },
+  empty: { alignItems: "center", justifyContent: "center", gap: 12, paddingTop: 80 },
+  emptyText: { fontSize: 18 },
+  row: { flexDirection: "row", alignItems: "center", padding: 14 },
+  rowFirst: { borderTopLeftRadius: 16, borderTopRightRadius: 16 },
+  rowLast: { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 },
+  iconCircle: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   rowInfo: { flex: 1, marginLeft: 12 },
-  merchant: { fontSize: 16, fontWeight: "600", color: "#000" },
-  tags: { flexDirection: "row", gap: 4, marginTop: 2 },
-  tag: { fontSize: 12, color: "#666" },
-  date: { fontSize: 11, color: "#aaa", marginTop: 2 },
-  rowRight: { alignItems: "flex-end" },
+  merchant: { fontSize: 16, fontWeight: "600" },
+  tag: { fontSize: 12, marginTop: 2 },
+  date: { fontSize: 12, marginTop: 2 },
+  rowRight: { alignItems: "flex-end", marginLeft: 8 },
   amount: { fontSize: 16, fontWeight: "600" },
-  income: { color: "#34C759" },
-  expense: { color: "#FF3B30" },
-  source: { fontSize: 11, color: "#aaa", marginTop: 2 },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#e0e0e0",
-  },
-  // Modal
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#e0e0e0",
-    backgroundColor: "#f2f2f7",
-  },
-  modalTitle: { fontSize: 17, fontWeight: "600" },
-  cancelBtn: { fontSize: 17, color: "#FF3B30" },
-  saveBtn: { fontSize: 17, color: "#007AFF", fontWeight: "600" },
-  modalScroll: { flex: 1, backgroundColor: "#f2f2f7" },
+  source: { fontSize: 12, marginTop: 2 },
+  separator: { height: StyleSheet.hairlineWidth },
+  modalScroll: { flex: 1 },
   section: { margin: 16, marginBottom: 0 },
-  sectionHeader: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#666",
-    marginBottom: 6,
-    paddingHorizontal: 4,
-    letterSpacing: 0.5,
-  },
-  card: { backgroundColor: "#fff", borderRadius: 12, overflow: "hidden" },
-  input: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: "#000",
-  },
-  inputSep: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#e0e0e0",
-    marginHorizontal: 16,
-  },
+  sectionHeader: { fontSize: 12, fontWeight: "600", marginBottom: 6, paddingHorizontal: 4, letterSpacing: 0.5 },
+  card: { borderRadius: 12, overflow: "hidden" },
+  input: { paddingHorizontal: 16, paddingVertical: 14, fontSize: 16 },
+  inputSep: { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
   editRow: { flexDirection: "row", alignItems: "center" },
-  label: { paddingLeft: 16, fontSize: 16, color: "#000", width: 80 },
-  currency: { paddingRight: 16, fontSize: 15, color: "#666" },
-  segmentContainer: {
-    flexDirection: "row",
-    margin: 10,
-    backgroundColor: "#f2f2f7",
-    borderRadius: 8,
-    padding: 3,
-  },
-  segment: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignItems: "center",
-  },
-  segmentText: { fontSize: 14, fontWeight: "500", color: "#666" },
-  pickerLabel: {
-    fontSize: 13,
-    color: "#666",
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 4,
-  },
-  chipScroll: { paddingHorizontal: 12, paddingBottom: 12 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#f2f2f7",
-    marginRight: 8,
-    marginTop: 4,
-  },
-  chipText: { fontSize: 14, color: "#333" },
+  label: { paddingLeft: 16, fontSize: 16, width: 90 },
+  currency: { paddingRight: 16, fontSize: 15 },
+  fieldError: { fontSize: 13, paddingHorizontal: 16, paddingBottom: 10, marginTop: -4 },
+  segmentContainer: { flexDirection: "row", margin: 10, borderRadius: 8, padding: 3 },
+  segment: { flex: 1, minHeight: 36, justifyContent: "center", borderRadius: 6, alignItems: "center" },
+  segmentText: { fontSize: 14, fontWeight: "500" },
+  pickerLabel: { fontSize: 13, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 },
   deleteButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -445,24 +416,8 @@ const styles = StyleSheet.create({
     gap: 8,
     margin: 16,
     padding: 16,
-    backgroundColor: "#fff",
     borderRadius: 12,
+    minHeight: MIN_TOUCH,
   },
-  deleteText: { fontSize: 16, color: "#FF3B30", fontWeight: "500" },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  headerTitle: {
-    fontSize: 34,
-    fontWeight: "700",
-    color: "#000",
-    letterSpacing: 0.3,
-  },
-  listCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    overflow: "hidden",
-  },
+  deleteText: { fontSize: 16, fontWeight: "500" },
 });

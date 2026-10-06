@@ -45,7 +45,15 @@
     },
     "savedToVault": "Moved to the vault",
     "savedToGoal": "Saved for: {{name}}",
-    "confirmDeleteSavings": "The money will go back from savings to your balance."
+    "confirmDeleteSavings": "The money will go back from savings to your balance.",
+    "noResults": "No results for this search",
+    "date": "Date",
+    "merchantRequired": "Enter a merchant or description",
+    "source": {
+      "manual": "Manual",
+      "qr": "QR",
+      "bank": "Bank"
+    }
   },
   "add": {
     "title": "Add",
@@ -248,7 +256,9 @@
   },
   "a11y": {
     "prevMonth": "Previous month",
-    "nextMonth": "Next month"
+    "nextMonth": "Next month",
+    "editHint": "Double-tap to edit",
+    "deleteHint": "Double-tap to delete"
   },
   "error": {
     "title": "Something went wrong",
