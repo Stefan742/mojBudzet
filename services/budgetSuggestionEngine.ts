@@ -16,23 +16,25 @@
  *      wants      25 %
  *      savings    15 %
  *      emergency  10 %
- *      debt        0 % (absorbed into needs proportionally when present)
+ *      debt       15 % when debt categories exist (taken from needs, wants
+ *                 and emergency)
+ *    Buckets without categories give their share to the others in
+ *    proportion, so the rule-based limits add up to the income.
  *
  * 3. Within each bucket, distribute its pool among member categories by
  *    weight (default weight = 1, range 1–5).
  *
  * 4. If real transactions are supplied, calibrate the suggestion:
- *      suggestedLimit = 0.7 × rule-based + 0.3 × (3-month rolling average)
+ *      suggestedLimit = 0.7 × rule-based + 0.3 × (average of the last 3
+ *      complete months)
  *    This blends the theoretical rule with actual user behaviour.
- *
- * 5. Fallback: if NO category has a recognisable bucket, divide income
- *    equally across all categories (zero-assumption mode).
  *
  * All results are rounded to the nearest integer (МКД has no sub-unit UX).
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { Category, Transaction, TransactionKind } from "../models";
+import { monthKey, shiftMonth } from "../utils/dates";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -67,6 +69,8 @@ export interface SuggestionInput {
   income: number;
   categories: CategoryWithMeta[];
   transactions?: Transaction[];
+  /** "Today" for the history window; defaults to now. */
+  referenceDate?: Date;
 }
 
 // ─── Bucket allocation table ──────────────────────────────────────────────────
@@ -181,73 +185,52 @@ function mkd(value: number): number {
 // ─── Transaction-based calibration ───────────────────────────────────────────
 
 /**
- * Computes the 3-month rolling average monthly spend per category.
- * Only EXPENSE transactions within the last 90 days are considered.
- * Returns a Map<categoryId, averageMonthlySpend>.
+ * Average monthly spend per category over the last 3 complete months
+ * (the current, partial month is excluded). Months before the first recorded
+ * transaction do not count, so a new user is not averaged over empty months.
  */
-function computeRollingAverages(
+export function computeRollingAverages(
   transactions: Transaction[],
   referenceDate: Date = new Date()
 ): Map<string, number> {
-  const cutoff = new Date(referenceDate);
-  cutoff.setDate(cutoff.getDate() - 90);
+  const window = [1, 2, 3].map((n) => monthKey(shiftMonth(referenceDate, -n)));
+  const firstMonth = transactions.reduce<string | null>((first, t) => {
+    const k = monthKey(new Date(t.date));
+    return first === null || k < first ? k : first;
+  }, null);
+  if (firstMonth === null) return new Map();
+  const counted = window.filter((k) => k >= firstMonth);
+  if (counted.length === 0) return new Map();
 
-  // Accumulate per-month spend per category
-  const monthly = new Map<string, Map<string, number>>(); // categoryId → { "YYYY-MM" → total }
-
+  const totals = new Map<string, number>();
   for (const t of transactions) {
-    if (t.kind !== TransactionKind.EXPENSE) continue;
-    if (!t.categoryId) continue;
-    const d = new Date(t.date);
-    if (d < cutoff) continue;
-
-    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-    if (!monthly.has(t.categoryId)) monthly.set(t.categoryId, new Map());
-    const catMap = monthly.get(t.categoryId)!;
-    catMap.set(monthKey, (catMap.get(monthKey) ?? 0) + t.amount);
+    if (t.kind !== TransactionKind.EXPENSE || !t.categoryId) continue;
+    if (!counted.includes(monthKey(new Date(t.date)))) continue;
+    totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount);
   }
 
-  // Average across months present
   const result = new Map<string, number>();
-  for (const [catId, byMonth] of monthly) {
-    const total  = [...byMonth.values()].reduce((a, b) => a + b, 0);
-    const months = byMonth.size;
-    result.set(catId, total / months);
-  }
-
+  for (const [catId, total] of totals) result.set(catId, total / counted.length);
   return result;
 }
 
 // ─── Bucket pool redistributor ────────────────────────────────────────────────
 
 /**
- * Redistributes the debt bucket pool proportionally into needs + wants + emergency
- * when debt categories exist, then normalises ratios so they still sum to 1.
+ * Bucket shares for the buckets that actually have categories. With debt
+ * categories, debt takes 15% from needs, wants and emergency. Shares of
+ * buckets without categories are spread over the others in proportion, so
+ * the rule-based limits always add up to the income.
  */
-function buildEffectiveRatios(
-  buckets: Set<Bucket>
-): Record<Bucket, number> {
-  const ratios = { ...BUCKET_RATIO };
-
-  if (!buckets.has("debt")) {
-    // Normalise the remaining 4 buckets so they sum to 1
-    const total = Object.values(ratios).reduce((a, b) => a + b, 0);
-    for (const b of Object.keys(ratios) as Bucket[]) {
-      ratios[b] = ratios[b] / total;
-    }
-    return ratios;
-  }
-
-  // Debt exists → distribute its 0% pool by absorbing from needs/wants/emergency
-  // We simply let needs=0.45, wants=0.20, savings=0.15, emergency=0.05, debt=0.15
-  return {
-    needs:     0.45,
-    wants:     0.20,
-    savings:   0.15,
-    emergency: 0.05,
-    debt:      0.15,
-  };
+export function buildEffectiveRatios(buckets: Set<Bucket>): Record<Bucket, number> {
+  const base: Record<Bucket, number> = buckets.has("debt")
+    ? { needs: 0.45, wants: 0.20, savings: 0.15, emergency: 0.05, debt: 0.15 }
+    : { ...BUCKET_RATIO };
+  const present = (Object.keys(base) as Bucket[]).filter((b) => buckets.has(b));
+  const total = present.reduce((sum, b) => sum + base[b], 0);
+  const ratios = { needs: 0, wants: 0, savings: 0, emergency: 0, debt: 0 } as Record<Bucket, number>;
+  for (const b of present) ratios[b] = total > 0 ? base[b] / total : 1 / present.length;
+  return ratios;
 }
 
 // ─── Main engine ──────────────────────────────────────────────────────────────
@@ -263,7 +246,7 @@ function buildEffectiveRatios(
 export function generateBudgetSuggestion(
   input: SuggestionInput
 ): BudgetSuggestion[] {
-  const { income, categories, transactions = [] } = input;
+  const { income, categories, transactions = [], referenceDate = new Date() } = input;
 
   // Guard
   if (income <= 0 || categories.length === 0) return [];
@@ -290,24 +273,9 @@ export function generateBudgetSuggestion(
   const presentBuckets = new Set<Bucket>(byBucket.keys());
   const effectiveRatios = buildEffectiveRatios(presentBuckets);
 
-  // ── Fallback: no bucket matched → divide income equally ──────────────────
-  const anyBucketRecognised = (Object.keys(BUCKET_RATIO) as Bucket[]).some(
-    (b) => byBucket.has(b)
-  );
-
-  if (!anyBucketRecognised) {
-    const equal = income / categories.length;
-    return categories.map((cat) => ({
-      categoryId: cat.id,
-      suggestedMonthlyLimit: mkd(equal),
-      bucket: "wants" as Bucket,
-      confidence: 1,
-    }));
-  }
-
   // ── Step 3: compute transaction-based calibration data ────────────────────
   const rollingAvg = transactions.length > 0
-    ? computeRollingAverages(transactions)
+    ? computeRollingAverages(transactions, referenceDate)
     : new Map<string, number>();
 
   // ── Step 4: generate suggestions ──────────────────────────────────────────
@@ -349,52 +317,4 @@ export function generateBudgetSuggestion(
   }
 
   return suggestions;
-}
-
-// ─── Convenience: apply suggestions directly to the store ────────────────────
-
-/**
- * Helper that converts engine output into the format expected by
- * `useAppStore.setBudget(categoryId, limit)`.
- *
- * Usage:
- *   const suggestions = generateBudgetSuggestion({ income, categories, transactions });
- *   applySuggestionsToStore(suggestions, setBudget);
- */
-export function applySuggestionsToStore(
-  suggestions: BudgetSuggestion[],
-  setBudget: (categoryId: string, limit: number) => void
-): void {
-  for (const s of suggestions) {
-    if (s.suggestedMonthlyLimit > 0) {
-      setBudget(s.categoryId, s.suggestedMonthlyLimit);
-    }
-  }
-}
-
-// ─── Convenience: human-readable summary for debug / UI display ───────────────
-
-/**
- * Returns a plain-text summary of suggestions — useful for a review modal
- * before the user confirms applying them.
- *
- * Example output:
- *   Потреби       → 15 000 МКД  (needs, ⚡ 100%)
- *   Желби         → 7 500 МКД   (wants, ⚡ 70%)
- */
-export function formatSuggestions(
-  suggestions: BudgetSuggestion[],
-  categories: Category[],
-  currency: string = "МКД"
-): string {
-  const catMap = new Map(categories.map((c) => [c.id, c.name]));
-
-  return suggestions
-    .map((s) => {
-      const name       = catMap.get(s.categoryId) ?? s.categoryId;
-      const amount     = s.suggestedMonthlyLimit.toLocaleString("mk-MK");
-      const pct        = Math.round(s.confidence * 100);
-      return `${name.padEnd(20)} → ${amount} ${currency}  (${s.bucket}, ⚡ ${pct}%)`;
-    })
-    .join("\n");
 }
