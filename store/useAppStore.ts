@@ -10,6 +10,7 @@ import {
   SavingsGoal,
 } from "../models";
 import { defaultCategories } from "../models/Category";
+import { dedupeCategoryIds } from "./migrations";
 import { v4 as uuid } from "uuid";
 
 const STORAGE_KEY = "budget_state";
@@ -271,6 +272,14 @@ export const useAppStore = create<AppStoreState>()(
     {
       name: STORAGE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<PersistedState>;
+        if (version < 1 && Array.isArray(state.categories)) {
+          state.categories = dedupeCategoryIds(state.categories, uuid);
+        }
+        return state as AppStoreState;
+      },
     }
   )
 );
