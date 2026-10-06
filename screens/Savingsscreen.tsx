@@ -18,11 +18,8 @@ import { useAmountField } from "@/hooks/useAmountField";
 import { ModalHeader } from "@/components/ModalHeader";
 import { DateField } from "@/components/DateField";
 import { MIN_TOUCH, useTabBarSpace } from "@/constants/layout";
+import { COLOR_PALETTE } from "@/constants/palette";
 
-const COLOR_PALETTE = [
-  "#4CAF50", "#FF9800", "#2196F3", "#F44336",
-  "#9C27B0", "#00BCD4", "#FFC107", "#E91E63",
-];
 
 const isAchieved = (g: SavingsGoal) => g.targetAmount > 0 && g.currentAmount >= g.targetAmount;
 

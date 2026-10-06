@@ -1,10 +1,12 @@
-jest.mock("@react-native-async-storage/async-storage", () =>
-  require("@react-native-async-storage/async-storage/jest/async-storage-mock")
-);
-
-import { useAppStore } from "../store/useAppStore";
+import { useAppStore, persistedSnapshot } from "../store/useAppStore";
 import { balanceOf, monthTotals } from "../store/selectors";
+import { buildExport } from "../store/backup";
 import { TransactionKind, monthKey } from "../models";
+
+// Hoisted above the imports by babel-jest.
+jest.mock("@react-native-async-storage/async-storage", () =>
+  jest.requireActual("@react-native-async-storage/async-storage/jest/async-storage-mock")
+);
 
 const store = () => useAppStore.getState();
 const balance = () => balanceOf(store().initialBalance, store().transactions);
@@ -111,8 +113,6 @@ describe("persistence (D-3)", () => {
 
 describe("export (R-11)", () => {
   it("contains all saved data and the store version", () => {
-    const { buildExport } = require("../store/backup");
-    const { persistedSnapshot } = require("../store/useAppStore");
     store().saveFromBalance(100, null, "");
     const parsed = JSON.parse(buildExport(persistedSnapshot(), new Date(2026, 9, 6)));
     expect(parsed.app).toBe("mojbudzet");

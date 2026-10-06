@@ -9,6 +9,8 @@ const SUPPORTED = ["mk", "en"];
 const device = Localization.getLocales()[0]?.languageCode ?? "mk";
 
 // Device language when supported; a saved choice is applied on hydration.
+// i18next's documented setup; the rule mistakes .use() for the named export.
+// eslint-disable-next-line import/no-named-as-default-member
 i18n
   .use(initReactI18next)
   .init({

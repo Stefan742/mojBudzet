@@ -79,15 +79,15 @@ function DonutChart({ parts, total, currency, animKey, accessibilityLabel }: Don
   const hole   = size * 0.52;
 
   const GAP_DEG = parts.length > 1 ? 2 : 0;
-  let cumulativeDeg = 0;
-  const segments = parts.map((p) => {
-    const fullSpan = total > 0 ? (p.amount / total) * 360 : 0;
-    const startDeg = cumulativeDeg + GAP_DEG / 2;
+  const segments: (DonutChartProps["parts"][number] & { startDeg: number; endDeg: number })[] = [];
+  for (let i = 0, start = 0; i < parts.length; i++) {
+    const fullSpan = total > 0 ? (parts[i].amount / total) * 360 : 0;
+    const startDeg = start + GAP_DEG / 2;
     // A full 360° arc has identical start and end points and draws nothing.
-    const endDeg = Math.min(cumulativeDeg + fullSpan - GAP_DEG / 2, startDeg + 359.99);
-    cumulativeDeg += fullSpan;
-    return { ...p, startDeg, endDeg };
-  });
+    const endDeg = Math.min(start + fullSpan - GAP_DEG / 2, startDeg + 359.99);
+    segments.push({ ...parts[i], startDeg, endDeg });
+    start += fullSpan;
+  }
 
   return (
     <View

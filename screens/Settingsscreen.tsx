@@ -26,12 +26,9 @@ import { dateLocale, monthStart } from "../utils/dates";
 import { ModalHeader } from "@/components/ModalHeader";
 import { CATEGORY_ICONS, CategoryIcon, DEFAULT_CATEGORY_ICON, categoryIconName } from "@/components/CategoryIcon";
 import { MIN_TOUCH, useTabBarSpace } from "@/constants/layout";
+import { COLOR_PALETTE } from "@/constants/palette";
 import { APP_VERSION } from "@/constants/app";
 
-const COLOR_PALETTE = [
-  "#4CAF50", "#FF9800", "#2196F3", "#F44336",
-  "#9C27B0", "#00BCD4", "#FFC107", "#795548", "#E91E63",
-];
 
 export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
