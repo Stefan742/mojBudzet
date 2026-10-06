@@ -252,10 +252,11 @@ function BudgetRow({ category }: { category: Category }) {
   const { colors } = useTheme();
   const budgets      = useAppStore((s) => s.budgets);
   const setBudget    = useAppStore((s) => s.setBudget);
-  const monthlySpent = useAppStore((s) => s.monthlySpent);
+  // Select the number, not the function: selecting s.monthlySpent never changes,
+  // so the row was not re-rendered when transactions were added.
+  const spent        = useAppStore((s) => s.monthlySpent(category.id));
 
   const limit    = budgets.find((b) => b.categoryId === category.id)?.monthlyLimit ?? 0;
-  const spent    = monthlySpent(category.id);
   const progress = limit > 0 ? Math.min(1, spent / limit) : 0;
 
   const [text, setText] = useState(limit > 0 ? String(Math.round(limit)) : "");
