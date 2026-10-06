@@ -13,6 +13,8 @@ import {
   Animated,
   Pressable,
   BackHandler,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useReducedMotion } from "react-native-reanimated";
@@ -63,7 +65,7 @@ function GlassPill({
   tintColor,
   children,
 }: {
-  style?: any;
+  style?: StyleProp<ViewStyle>;
   glassStyle?: "regular" | "clear";
   /** Потемнува/посветлува glass-от за читливост; на iOS < 26 ја заменува подлогата. */
   tintColor?: string;
@@ -114,7 +116,7 @@ function GlassPill({
             borderColor: isDark
               ? "rgba(255,255,255,0.10)"
               : "rgba(255,255,255,0.54)",
-            borderRadius: (style?.borderRadius as number) ?? 20,
+            borderRadius: (StyleSheet.flatten(style)?.borderRadius as number | undefined) ?? 20,
           },
         ]}
       />

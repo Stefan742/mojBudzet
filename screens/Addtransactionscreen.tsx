@@ -303,7 +303,7 @@ export default function AddTransactionScreen() {
 
           {/* Save, after everything it saves (U-8); clear enabled/disabled states (B-18). */}
           <TouchableOpacity
-            style={[styles.saveButton, { backgroundColor: canSave ? colors.accent : colors.inputBg }, canSave && styles.saveShadow]}
+            style={[styles.saveButton, { backgroundColor: canSave ? colors.accent : colors.inputBg }, canSave && [styles.saveShadow, { shadowColor: colors.accent }]]}
             onPress={save}
             disabled={!canSave}
             accessibilityRole="button"
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     borderRadius: 14, padding: 16, alignItems: "center", marginTop: 4, marginBottom: 16,
     flexDirection: "row", justifyContent: "center", gap: 8, minHeight: MIN_TOUCH,
   },
-  saveShadow: { shadowColor: "#007AFF", shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  saveShadow: { shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
   saveButtonText: { fontSize: 17, fontWeight: "600" },
   toast: {
     position: "absolute", alignSelf: "center", zIndex: 100,
