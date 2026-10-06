@@ -92,7 +92,7 @@
       "preview": "Провери ги предлозите и примени ги со еден клик.",
       "back": "← Назад",
       "apply": "Примени ги",
-      "calibrated": "calibrated"
+      "calibrated": "прилагодено"
     },
     "buckets": {
       "needs": "Потреби 50%",
@@ -113,32 +113,29 @@
     "addMoney": "Додај пари",
     "enterAmount": "Износ од салдото",
     "achieved": "Достигнато",
-    "more": "уште",
     "goalAchieved": "🎉 Цел достигната",
-    "deadline": "Рок:",
     "milestone50": "На пола пат си! Само напред!",
     "milestone100": "Ја достигна целта!",
     "delete": "Избриши",
-    "confirmDelete": "Дали си сигурен?",
     "vaultTransfer": {
       "title": "Префрли од Сефот",
-      "available": "Достапно:",
       "amount": "Износ",
       "all": "Сè",
       "pickGoal": "Избери цел",
       "noGoals": "Нема цели за заштеда.",
       "confirm": "Префрли",
-      "to": "→",
-      "cancel": "Откажи"
+      "cancel": "Откажи",
+      "availableAmount": "Достапно: {{amount}}",
+      "exceeds": "Во сефот има само {{amount}}.",
+      "confirmTo": "Префрли во „{{name}}“"
     },
     "editor": {
       "newTitle": "Нова цел",
       "editTitle": "Измени",
       "cancel": "Откажи",
       "save": "Зачувај",
-      "name": "Ime (на пр. Одмор)",
+      "name": "Име (на пр. Одмор)",
       "target": "Цел",
-      "current": "Тековно",
       "setDeadline": "Постави рок",
       "date": "Датум",
       "delete": "Избриши цел",
@@ -148,9 +145,14 @@
         "deadline": "РОК"
       },
       "alreadySaved": "Веќе заштедено",
-      "alreadySavedHint": "Пари заштедени надвор од апликацијата. Не се одземаат од салдото."
+      "alreadySavedHint": "Пари заштедени надвор од апликацијата. Не се одземаат од салдото.",
+      "nameLabel": "Име на целта",
+      "nameRequired": "Внеси име за целта"
     },
-    "confirmDeleteGoal": "Заштедените {{amount}} ќе се префрлат во сефот."
+    "confirmDeleteGoal": "Заштедените {{amount}} ќе се префрлат во сефот.",
+    "remaining": "Уште {{amount}}",
+    "transferredTo": "Префрлено во „{{name}}“",
+    "deadlineOn": "Рок: {{date}}"
   },
   "settings": {
     "title": "Поставки",
@@ -167,9 +169,9 @@
     },
     "appearance": "ИЗГЛЕД",
     "language": "ЈАЗИК",
-    "light": "Light",
-    "dark": "Dark",
-    "system": "System",
+    "light": "Светла",
+    "dark": "Темна",
+    "system": "Според системот",
     "macedonian": "Македонски",
     "english": "English",
     "categories": "КАТЕГОРИИ",
@@ -182,7 +184,7 @@
       "editTitle": "Измени",
       "cancel": "Откажи",
       "save": "Зачувај",
-      "name": "Ime",
+      "name": "Име",
       "delete": "Избриши категорија",
       "newSub": "Нова поткатегорија",
       "add": "Додај",
@@ -257,7 +259,8 @@
     "prevMonth": "Претходен месец",
     "nextMonth": "Следен месец",
     "editHint": "Двоен допир за уредување",
-    "deleteHint": "Двоен допир за бришење"
+    "deleteHint": "Двоен допир за бришење",
+    "colorOption": "Боја {{n}}"
   },
   "error": {
     "title": "Нешто тргна наопаку",

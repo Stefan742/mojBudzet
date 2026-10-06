@@ -113,23 +113,21 @@
     "addMoney": "Add money",
     "enterAmount": "Amount from your balance",
     "achieved": "Achieved",
-    "more": "still",
     "goalAchieved": "🎉 Goal reached",
-    "deadline": "Due:",
     "milestone50": "Halfway there! Keep going!",
     "milestone100": "You reached your goal!",
     "delete": "Delete",
-    "confirmDelete": "Are you sure?",
     "vaultTransfer": {
       "title": "Transfer from Vault",
-      "available": "Available:",
       "amount": "Amount",
       "all": "All",
       "pickGoal": "Choose goal",
       "noGoals": "No savings goals.",
       "confirm": "Transfer",
-      "to": "→",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "availableAmount": "Available: {{amount}}",
+      "exceeds": "The vault only has {{amount}}.",
+      "confirmTo": "Transfer to “{{name}}”"
     },
     "editor": {
       "newTitle": "New goal",
@@ -138,7 +136,6 @@
       "save": "Save",
       "name": "Name (e.g. Vacation)",
       "target": "Target",
-      "current": "Current",
       "setDeadline": "Set deadline",
       "date": "Date",
       "delete": "Delete goal",
@@ -148,9 +145,14 @@
         "deadline": "DEADLINE"
       },
       "alreadySaved": "Already saved",
-      "alreadySavedHint": "Money saved outside the app. Not taken from your balance."
+      "alreadySavedHint": "Money saved outside the app. Not taken from your balance.",
+      "nameLabel": "Goal name",
+      "nameRequired": "Enter a name for the goal"
     },
-    "confirmDeleteGoal": "The {{amount}} saved will move to the vault."
+    "confirmDeleteGoal": "The {{amount}} saved will move to the vault.",
+    "remaining": "{{amount}} to go",
+    "transferredTo": "Moved to “{{name}}”",
+    "deadlineOn": "Due {{date}}"
   },
   "settings": {
     "title": "Settings",
@@ -257,7 +259,8 @@
     "prevMonth": "Previous month",
     "nextMonth": "Next month",
     "editHint": "Double-tap to edit",
-    "deleteHint": "Double-tap to delete"
+    "deleteHint": "Double-tap to delete",
+    "colorOption": "Colour {{n}}"
   },
   "error": {
     "title": "Something went wrong",
