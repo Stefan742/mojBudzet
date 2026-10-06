@@ -12,7 +12,7 @@
  *   const { categorize, correct, isReady } = useMLCategorizer();
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { NaiveBayesCategorizer, CategorizationResult } from "./naiveBayesCategorizer";
 import { ModelStore } from "./storage";
 import { TrainingManager } from "./training";
@@ -44,11 +44,12 @@ interface UseMLCategorizerResult {
 export function useMLCategorizer({
   datasetCSV,
 }: UseMLCategorizerOptions): UseMLCategorizerResult {
-  const storeRef = useRef(new ModelStore());
-  const categorizerRef = useRef(new NaiveBayesCategorizer(storeRef.current));
-  const managerRef = useRef(
-    new TrainingManager(categorizerRef.current, storeRef.current)
-  );
+  // Created once per mount; lazy state instead of reading refs during render.
+  const [{ categorizer, manager }] = useState(() => {
+    const store = new ModelStore();
+    const nb = new NaiveBayesCategorizer(store);
+    return { categorizer: nb, manager: new TrainingManager(nb, store) };
+  });
 
   const [isReady, setIsReady] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -60,8 +61,8 @@ export function useMLCategorizer({
       // Normalize CSV — handle both string and require() object
       const csv = typeof datasetCSV === "string" ? datasetCSV : datasetCSV?.default ?? "";
       
-      await managerRef.current.initialise(csv);
-      const count = await managerRef.current.pendingCount();
+      await manager.initialise(csv);
+      const count = await manager.pendingCount();
       if (!cancelled) {
         setPendingCount(count);
         setIsReady(true);
@@ -70,28 +71,28 @@ export function useMLCategorizer({
     return () => {
       cancelled = true;
     };
-  }, [datasetCSV]);
+  }, [datasetCSV, manager]);
 
   const categorize = useCallback(
     (merchant: string, note: string, categories: Category[]) =>
-      categorizerRef.current.categorize(merchant, note, categories),
-    []
+      categorizer.categorize(merchant, note, categories),
+    [categorizer]
   );
 
   const correct = useCallback(
     async (merchant: string, note: string, subcategoryId: string) => {
       const text = `${merchant} ${note}`.trim();
-      await managerRef.current.recordCorrection(text, subcategoryId);
-      const count = await managerRef.current.pendingCount();
+      await manager.recordCorrection(text, subcategoryId);
+      const count = await manager.pendingCount();
       setPendingCount(count);
     },
-    []
+    [manager]
   );
 
   const retrain = useCallback(async () => {
-    await managerRef.current.retrainFromAllSamples();
+    await manager.retrainFromAllSamples();
     setPendingCount(0);
-  }, []);
+  }, [manager]);
 
   return { isReady, pendingCount, categorize, correct, retrain };
 }

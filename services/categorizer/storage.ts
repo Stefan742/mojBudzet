@@ -27,7 +27,8 @@ export interface NaiveBayesModel {
 // ─── Keys ────────────────────────────────────────────────────────────────────
 
 const KEYS = {
-  model: "@nb_model_v1",
+  // v2: retrained after the dataset labels were fixed (B-12).
+  model: "@nb_model_v2",
   allSamples: "@nb_samples_v1",
   pendingSamples: "@nb_pending_v1",
 } as const;

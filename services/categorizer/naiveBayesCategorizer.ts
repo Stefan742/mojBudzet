@@ -207,7 +207,7 @@ export class NaiveBayesCategorizer {
       };
     }
 
-    const needs = categories.find((c) => c.name === "Потреби");
+    const needs = categories.find((c) => c.id === "cat-needs");
     return {
       categoryId: needs?.id ?? categories[0]?.id,
       subcategoryId: needs?.subcategories[0]?.id,
