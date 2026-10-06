@@ -121,3 +121,19 @@ describe("export (R-11)", () => {
     expect(parsed.data.transactions).toHaveLength(1);
   });
 });
+
+describe("persisted through the sharded storage", () => {
+  it("rehydrates the same data", async () => {
+    store().addTransaction({
+      id: "t1", date: new Date(2025, 5, 1).toISOString(), merchant: "old", amount: 50,
+      kind: TransactionKind.EXPENSE, note: "", source: "Рачно",
+    });
+    store().saveFromBalance(70, null, "");
+    const before = persistedSnapshot();
+    // Let the async persist writes finish, then load from storage again.
+    await new Promise((r) => setTimeout(r, 0));
+    await useAppStore.persist.rehydrate();
+    expect(persistedSnapshot().transactions).toEqual(before.transactions);
+    expect(persistedSnapshot().vaultAmount).toBe(70);
+  });
+});

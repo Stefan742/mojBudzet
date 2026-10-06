@@ -58,14 +58,20 @@ export default function HistoryScreen() {
     return goal ? t("history.savedToGoal", { name: goal.name }) : t("history.savedToVault");
   };
 
+  // Newest first by date: dates can be edited, so insertion order is not enough.
+  const sorted = useMemo(
+    () => [...transactions].sort((a, b) => b.date.localeCompare(a.date)),
+    [transactions]
+  );
+
   const query = search.trim().toLowerCase();
   const filtered = query
-    ? transactions.filter((tx) => {
+    ? sorted.filter((tx) => {
         const cat = findCategory(categories, tx.categoryId);
         return [rowTitle(tx), tx.note ?? "", cat ? categoryLabel(cat, t) : ""]
           .some((field) => field.toLowerCase().includes(query));
       })
-    : transactions;
+    : sorted;
 
   const confirmDeleteSavings = (tx: Transaction) =>
     Alert.alert(t("history.delete"), t("history.confirmDeleteSavings"), [

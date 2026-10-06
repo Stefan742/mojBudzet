@@ -16,6 +16,7 @@ import {
   migratePersistedState,
   refreshDefaultCategories,
 } from "./migrations";
+import { createShardedStorage } from "./shardedStorage";
 import i18n from "../i18n";
 import { v4 as uuid } from "uuid";
 
@@ -264,7 +265,8 @@ export const useAppStore = create<AppStoreState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
+      // Transactions are kept in one entry per year (D-10, P-5).
+      storage: createJSONStorage(() => createShardedStorage(AsyncStorage)),
       version: STORE_VERSION,
       // Only data is saved, never the action functions (D-3).
       partialize: pickPersisted,
