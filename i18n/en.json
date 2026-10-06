@@ -61,11 +61,7 @@
     "amount": "Amount",
     "saved": "Saved",
     "saveTransaction": "Save transaction",
-    "ai": "AI",
-    "manual": "Manual",
-    "aiHint": "Enter merchant for AI suggestion",
-    "aiCategorizing": "AI categorizing...",
-    "chooseCategory": "Choose",
+    "aiHint": "Enter a merchant to get a category suggestion",
     "withoutSub": "None",
     "expense": "Expense",
     "income": "Income",
@@ -75,7 +71,10 @@
       "note": "NOTE",
       "category": "Category",
       "subcategory": "Subcategory"
-    }
+    },
+    "autoSuggest": "Suggest a category automatically",
+    "noCategoryHint": "Will be saved without a category.",
+    "merchantLabel": "Merchant"
   },
   "budget": {
     "title": "Budget",

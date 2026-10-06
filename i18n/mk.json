@@ -61,11 +61,7 @@
     "amount": "Сума",
     "saved": "Зачувано",
     "saveTransaction": "Зачувај трансакција",
-    "ai": "AI",
-    "manual": "Рачно",
-    "aiHint": "Внеси продавач за AI предлог",
-    "aiCategorizing": "AI категоризира...",
-    "chooseCategory": "Избери",
+    "aiHint": "Внеси продавач за предлог на категорија",
     "withoutSub": "Без",
     "expense": "Трошок",
     "income": "Приход",
@@ -75,7 +71,10 @@
       "note": "ЗАБЕЛЕШКА",
       "category": "Категорија",
       "subcategory": "Поткатегорија"
-    }
+    },
+    "autoSuggest": "Автоматски предлог за категорија",
+    "noCategoryHint": "Ќе се зачува без категорија.",
+    "merchantLabel": "Продавач"
   },
   "budget": {
     "title": "Буџет",
