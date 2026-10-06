@@ -88,6 +88,10 @@ const initialState: PersistedState = {
 
 const PERSISTED_KEYS = Object.keys(initialState) as (keyof PersistedState)[];
 
+/** Only the saved data, without the action functions. */
+const pickPersisted = (s: AppStoreState): PersistedState =>
+  Object.fromEntries(PERSISTED_KEYS.map((k) => [k, s[k]])) as unknown as PersistedState;
+
 const deviceLanguage = (): string => i18n.options.lng ?? "mk";
 
 export const useAppStore = create<AppStoreState>()(
@@ -263,8 +267,7 @@ export const useAppStore = create<AppStoreState>()(
       storage: createJSONStorage(() => AsyncStorage),
       version: STORE_VERSION,
       // Only data is saved, never the action functions (D-3).
-      partialize: (s) =>
-        Object.fromEntries(PERSISTED_KEYS.map((k) => [k, s[k]])) as unknown as PersistedState,
+      partialize: pickPersisted,
       migrate: (persisted, version) =>
         migratePersistedState(persisted, version, { newId: uuid, now: new Date() }) as AppStoreState,
       merge: (persisted, current) => {
@@ -282,3 +285,6 @@ export const useAppStore = create<AppStoreState>()(
     }
   )
 );
+
+/** The data that is saved on the device, for export (R-11). */
+export const persistedSnapshot = (): PersistedState => pickPersisted(useAppStore.getState());

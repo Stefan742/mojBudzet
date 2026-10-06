@@ -181,7 +181,6 @@
     "english": "English",
     "categories": "CATEGORIES",
     "addCategory": "Add category",
-    "subcats": "subcats.",
     "about": "ABOUT",
     "version": "Version",
     "editor": {
@@ -198,8 +197,23 @@
         "color": "COLOR",
         "icon": "ICON",
         "subs": "SUBCATEGORIES"
-      }
-    }
+      },
+      "deleteBody": "Transactions in this category will become uncategorized and its budget will be removed.",
+      "removeSub": "Remove subcategory {{name}}"
+    },
+    "deviceLanguage": "Device language",
+    "startBalanceHint": "How much money you had when you started using the app. Your balance is calculated from it.",
+    "subcatCount_one": "{{count}} subcategory",
+    "subcatCount_other": "{{count}} subcategories",
+    "data": "YOUR DATA",
+    "export": "Export data",
+    "exportTitle": "Moj Budzet data export",
+    "exportFailed": "The export did not work. Please try again.",
+    "deleteAll": "Delete all data",
+    "deleteAllTitle": "Delete all data?",
+    "deleteAllBody": "All transactions, categories, budgets and goals will be deleted from this device. This cannot be undone. Export your data first if you want a copy.",
+    "deleteAllConfirm": "Delete everything",
+    "dataFooter": "Your data is stored only on this device and may be included in the device's backups."
   },
   "leftover": {
     "title": "Last month's leftover",
@@ -266,11 +280,52 @@
     "nextMonth": "Next month",
     "editHint": "Double-tap to edit",
     "deleteHint": "Double-tap to delete",
-    "colorOption": "Colour {{n}}"
+    "colorOption": "Colour {{n}}",
+    "iconOption": "Icon {{n}}"
   },
   "error": {
     "title": "Something went wrong",
     "body": "Your data is safe. Please try again.",
     "retry": "Try again"
+  },
+  "privacy": {
+    "title": "Privacy policy",
+    "intro": "Moj Budzet is built to keep your finances on your own device. This page explains what data the app uses and where it is kept.",
+    "updated": "Last updated: October 2026.",
+    "contactTitle": "Contact",
+    "sections": {
+      "data": {
+        "title": "What you enter",
+        "body": "Transactions (merchant, amount, date, category, note), categories, budgets, savings goals, your starting balance, monthly income and settings (theme, language). The app does not ask for your name, email or phone number."
+      },
+      "storage": {
+        "title": "Where it is stored",
+        "body": "All data is stored only on this device, in the app's storage. There is no account and no server. The app does not add its own encryption, so protect your device with a passcode or biometrics."
+      },
+      "backups": {
+        "title": "Backups",
+        "body": "If device backups (iCloud or Google) are turned on, the operating system may include the app's data in them, according to your device settings."
+      },
+      "sharing": {
+        "title": "Sharing",
+        "body": "The app does not send your data anywhere. There are no ads, analytics or tracking. Your data only leaves the app when you export it."
+      },
+      "suggestions": {
+        "title": "Category and budget suggestions",
+        "body": "Suggestions are calculated on the device from the data you enter. Nothing is sent over the internet."
+      },
+      "rights": {
+        "title": "Your control",
+        "body": "In Settings you can export all of your data or delete it. Uninstalling the app also deletes its data from the device."
+      },
+      "children": {
+        "title": "Children",
+        "body": "The app is not directed at children under 13 and does not knowingly collect their data."
+      },
+      "changes": {
+        "title": "Changes",
+        "body": "If the app ever starts using data differently, this page will be updated before that happens."
+      }
+    }
   }
 }

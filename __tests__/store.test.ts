@@ -108,3 +108,16 @@ describe("persistence (D-3)", () => {
     expect(saved).toHaveProperty("language");
   });
 });
+
+describe("export (R-11)", () => {
+  it("contains all saved data and the store version", () => {
+    const { buildExport } = require("../store/backup");
+    const { persistedSnapshot } = require("../store/useAppStore");
+    store().saveFromBalance(100, null, "");
+    const parsed = JSON.parse(buildExport(persistedSnapshot(), new Date(2026, 9, 6)));
+    expect(parsed.app).toBe("mojbudzet");
+    expect(parsed.storeVersion).toBe(2);
+    expect(parsed.data.vaultAmount).toBe(100);
+    expect(parsed.data.transactions).toHaveLength(1);
+  });
+});

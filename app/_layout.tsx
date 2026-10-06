@@ -19,6 +19,8 @@ export default function RootLayout() {
   // saved language is applied during hydration, before this first render (B-3).
   const hydrated    = useSyncExternalStore(subscribeHydration, getHydrated);
   const isOnboarded = useAppStore((s) => s.isOnboarded);
+  const { t }       = useTranslation();
+  const { colors }  = useTheme();
 
   return (
     <ThemeProvider>
@@ -32,6 +34,17 @@ export default function RootLayout() {
           <Stack.Protected guard={!isOnboarded}>
             <Stack.Screen name="onboarding" />
           </Stack.Protected>
+          <Stack.Screen
+            name="privacy"
+            options={{
+              headerShown: true,
+              title: t('privacy.title'),
+              headerBackTitle: t('common.back'),
+              headerStyle: { backgroundColor: colors.background },
+              headerTintColor: colors.accent,
+              headerTitleStyle: { color: colors.text },
+            }}
+          />
         </Stack>
       ) : (
         <LoadingScreen />
