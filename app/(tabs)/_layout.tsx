@@ -976,7 +976,7 @@ const styles = StyleSheet.create({
     minWidth: 150,
   },
   moreItemBorder: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderWidth: 1,
     borderRadius: 20,
   },

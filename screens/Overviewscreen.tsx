@@ -361,8 +361,8 @@ export default function OverviewScreen() {
     const now = new Date();
     if (now.getDate() !== 1 || currentBalance <= 0) return;
     const monthKey = `${SHOWN_KEY}_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    if (!(global as any)[monthKey]) {
-      (global as any)[monthKey] = true;
+    if (!(globalThis as any)[monthKey]) {
+      (globalThis as any)[monthKey] = true;
       leftoverRef.current = currentBalance;
       addTransaction({
         id: uuid(), amount: currentBalance, kind: TransactionKind.EXPENSE,
