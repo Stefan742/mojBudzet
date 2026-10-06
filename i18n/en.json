@@ -245,7 +245,8 @@
     "without": "None",
     "yes": "Yes",
     "no": "No",
-    "currency": "MKD"
+    "currency": "MKD",
+    "loading": "Loading"
   },
   "categories": {
     "cat-needs": "Needs",
@@ -266,5 +267,10 @@
   "a11y": {
     "prevMonth": "Previous month",
     "nextMonth": "Next month"
+  },
+  "error": {
+    "title": "Something went wrong",
+    "body": "Your data is safe. Please try again.",
+    "retry": "Try again"
   }
 }

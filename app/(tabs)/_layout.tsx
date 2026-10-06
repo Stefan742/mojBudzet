@@ -13,8 +13,6 @@ import {
   Animated,
   Pressable,
 } from "react-native";
-import { useAppStore } from "@/store/useAppStore";
-import LoadingScreen from "@/app/loading";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { useTranslation } from "react-i18next";
@@ -840,22 +838,8 @@ function CustomTabBar({
 
 export default function TabLayout() {
   const router     = useRouter();
-  const [hydrated, setHydrated] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const { t } = useTranslation();
-
-  useEffect(() => {
-    if (useAppStore.persist.hasHydrated()) {
-      setHydrated(true);
-    } else {
-      const unsub = useAppStore.persist.onFinishHydration(() =>
-        setHydrated(true)
-      );
-      return unsub;
-    }
-  }, []);
-
-  if (!hydrated) return <LoadingScreen />;
 
   return (
     <>

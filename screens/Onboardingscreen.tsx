@@ -10,7 +10,6 @@ import {
   ScrollView,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
@@ -26,7 +25,6 @@ export default function OnboardingScreen() {
   const [incomeText, setIncomeText]   = useState("");
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [incomeError, setIncomeError]   = useState<string | null>(null);
-  const router = useRouter();
 
   // Returns the amount, or an error message for the field.
   const validate = (text: string, allowZero: boolean): number | string => {
@@ -47,9 +45,8 @@ export default function OnboardingScreen() {
     setIncomeError(typeof income === "string" ? income : null);
     if (typeof balance === "string" || typeof income === "string") return;
 
+    // The root layout's protected routes switch to the tabs once onboarded.
     completeOnboarding(balance, income);
-    // Програматска навигација — не чека на re-render од _layout
-    router.replace("/(tabs)");
   };
 
   const fields = [
