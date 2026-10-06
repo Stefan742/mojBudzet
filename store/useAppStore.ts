@@ -31,7 +31,7 @@ interface ComputedActions {
 }
 
 interface MutationActions {
-  completeOnboarding: (balance: number) => void;
+  completeOnboarding: (balance: number, monthlyIncome?: number) => void;
   addTransaction: (t: Transaction) => void;
   updateTransaction: (t: Transaction) => void;
   deleteTransaction: (id: string) => void;
@@ -158,8 +158,15 @@ export const useAppStore = create<AppStoreState>()(
 
       // ─── Mutations ───────────────────────────────────────────────────────
 
-      completeOnboarding: (balance: number) =>
-        set({ initialBalance: balance, isOnboarded: true }),
+      completeOnboarding: (balance: number, monthlyIncome = 0) =>
+        set((s) => ({
+          initialBalance: balance,
+          isOnboarded: true,
+          incomeSchedule:
+            monthlyIncome > 0
+              ? withIncomeFrom(s.incomeSchedule, monthKey(new Date()), monthlyIncome)
+              : s.incomeSchedule,
+        })),
 
       setInitialBalance: (balance: number) =>
         set({ initialBalance: balance }),

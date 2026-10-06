@@ -215,6 +215,15 @@
     "carryAlert":   "Carried over ✓",
     "carryMsg":     "added to the new month."
   },
+  "onboarding": {
+    "title":"Welcome!",
+    "subtitle":"Enter how much money you have now and, if you like, your monthly income.",
+    "balanceLabel":"Current balance",
+    "balanceHint":"How much money you have right now. Your balance starts from this.",
+    "incomeLabel":"Monthly income (optional)",
+    "incomeHint":"Used for budget planning, never added to your balance. You can change it in Settings.",
+    "continue":"Continue"
+  },
   "common": {
     "cancel":  "Cancel",
     "save":    "Save",
