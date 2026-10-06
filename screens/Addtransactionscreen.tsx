@@ -9,16 +9,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   Animated,
-  Easing,
   KeyboardAvoidingView,
   Platform,
-  Modal,
-  Vibration,
-  Dimensions,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { SvgXml } from "react-native-svg";
-// import { CameraView, useCameraPermissions } from "expo-camera";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
 import { TransactionKind } from "../models";
@@ -26,300 +20,7 @@ import { findCategory } from "../store/selectors";
 import { useMLCategorizer } from "../services/categorizer/useMLCategorizer";
 import { v4 as uuid } from "uuid";
 import { useTheme } from "@/hooks/useTheme";
-import { analyzeReceiptImage } from "../services/receiptScanner";
 import { MARKET_DATASET_CSV } from "../assets/datasets/market_dataset";
-
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
-
-// ─── QR Payload Parser ────────────────────────────────────────────────────────
-function parseQRPayload(payload: string): {
-  merchant?: string;
-  amount?: number;
-  receiptId?: string;
-} {
-  try {
-    const url = new URL(payload);
-    const merchant =
-      url.searchParams.get("merchant") ||
-      url.searchParams.get("seller") ||
-      url.searchParams.get("m") ||
-      url.hostname;
-    const rawAmount =
-      url.searchParams.get("total") ||
-      url.searchParams.get("amount") ||
-      url.searchParams.get("iznos") ||
-      url.searchParams.get("suma") ||
-      url.searchParams.get("s");
-    const amount = rawAmount ? parseFloat(rawAmount.replace(",", ".")) : undefined;
-    return {
-      merchant: merchant || undefined,
-      amount: isNaN(amount ?? NaN) ? undefined : amount,
-    };
-  } catch {}
-
-  try {
-    const obj = JSON.parse(payload);
-    const merchant = obj.merchant || obj.seller || obj.name || obj.m;
-    const rawAmount = obj.total ?? obj.amount ?? obj.iznos ?? obj.suma;
-    const amount =
-      typeof rawAmount === "string"
-        ? parseFloat(rawAmount.replace(",", "."))
-        : typeof rawAmount === "number"
-        ? rawAmount
-        : undefined;
-    return {
-      merchant: typeof merchant === "string" ? merchant : undefined,
-      amount: amount !== undefined && !isNaN(amount) ? amount : undefined,
-    };
-  } catch {}
-
-  const sepMatch = payload.match(/[|;\n]/);
-  if (sepMatch) {
-    const parts = payload.split(/[|;\n]/);
-    let merchant: string | undefined;
-    let amount: number | undefined;
-    for (const part of parts) {
-      const [k, v] = part.split("=").map((s) => s.trim());
-      if (!k || !v) continue;
-      const key = k.toLowerCase();
-      if (["merchant", "m", "prodavac", "seller"].includes(key)) merchant = v;
-      if (["total", "t", "suma", "iznos", "amount"].includes(key)) {
-        const n = parseFloat(v.replace(",", "."));
-        if (!isNaN(n)) amount = n;
-      }
-    }
-    if (merchant || amount) return { merchant, amount };
-  }
-
-  const faMatch = payload.match(/[A-Za-z]{2}\d{9}/);
-  if (faMatch) return { receiptId: faMatch[0] };
-
-  return {};
-}
-
-// ─── Receipt Loading Overlay ──────────────────────────────────────────────────
-
-const _walletBodySvg = `<svg viewBox="0 0 694.81 837.83" xmlns="http://www.w3.org/2000/svg">
-  <path fill="#ffffff"
-    d="M61.82,837.83c-12.05,0-27.38-2.61-39.38-13.34-15.55-13.91-21.06-37.15-16.39-69.07L1.23,331.03c-1.58-7.63-1.64-16.22-.15-25.71,2.31-14.8,9.51-26.6,21.39-35.06,30.44-21.68,81.69-12.77,83.85-12.38l-3.54,19.68,1.77-9.84-1.76,9.84c-.45-.08-45.21-7.8-68.75,9-7.21,5.14-11.49,12.04-13.07,21.06l.24,21.08c1.06,3.93,2.8,7.3,5.23,10.14,12.54,14.65,43.38,15.87,71.31,15.87,45.44,0,468.83,1.68,473.1,1.7,26.96,0,78.02,13.83,78.02,66.15l5.1,331.29c.42,4.92,2.69,41.51-20.89,64.66-15.06,14.79-36.78,20.62-64.57,17.34H80.2c-2.88,.65-9.8,1.97-18.38,1.97ZM21.56,360.86l4.5,395.92-.12,.8c-3.8,25.2-.52,42.68,9.77,51.94,14.7,13.24,40.5,6.73,40.75,6.66l1.24-.32h1.31s490.69,0,490.69,0l.61,.07c21.7,2.66,38.07-1.25,48.68-11.61,17.91-17.5,15.07-48.61,15.03-48.92l-.05-.86-5.1-331.82c0-45.54-55.72-46.3-58.09-46.31-4.29-.02-427.64-1.7-473.04-1.7-28.22,0-56.93-1.23-76.17-13.85Z"/>
-  <path fill="#ffffff"
-    d="M649.07,684.41h-103.8c-51.49,0-93.38-41.89-93.38-93.38s41.89-93.38,93.38-93.38h103.8c25.22,0,45.73,20.52,45.73,45.73v95.29c0,25.22-20.52,45.73-45.73,45.73Zm-103.8-166.76c-40.46,0-73.38,32.92-73.38,73.38s32.92,73.38,73.38,73.38h103.8c14.19,0,25.74-11.55,25.74-25.74v-95.29c0-14.19-11.55-25.74-25.74-25.74h-103.8Z"/>
-  <circle fill="#ffffff" cx="545.27" cy="596.14" r="28.93"/>
-</svg>`;
-
-const _bill1Svg = `<svg viewBox="0 0 694.81 837.83" xmlns="http://www.w3.org/2000/svg">
-  <polygon fill="#ffffff"
-    points="219.11 332.38 200.02 332.38 424.46 0 648.4 154.87 525.61 332.19 506.13 332.38 620.59 159.94 429.53 27.82 219.11 332.38"/>
-  <path fill="#ffffff"
-    d="M463.98,318.68c0,4.62-.38,9.18-1.11,13.6h-163.42c-.73-4.42-1.11-8.98-1.11-13.6,0-45.74,37.08-82.82,82.82-82.82s82.82,37.08,82.82,82.82Z"/>
-</svg>`;
-
-const _bill2Svg = `<svg viewBox="0 0 694.81 837.83" xmlns="http://www.w3.org/2000/svg">
-  <polygon fill="#aaaaaa"
-    points="327.31 75.34 323.52 92.51 277.74 83.62 217.41 71.92 205.75 131.95 163.24 332.38 146.42 332.38 203.49 51.31 327.31 75.34"/>
-  <path fill="#aaaaaa"
-    d="M280.21,75.14c-4.91,21.81-19.76,41.09-41.81,50.76-13.52,5.93-27.87,7.42-41.4,5.12l13.47-69.4,69.75,13.53Z"/>
-</svg>`;
-
-function ReceiptLoadingOverlay() {
-  const { t } = useTranslation();
-  const LOGO_W = 112;
-  const LOGO_H = 150;
-  const billsProgress = useRef(new Animated.Value(0)).current;
-  const logoScale     = useRef(new Animated.Value(1)).current;
-  const dot1 = useRef(new Animated.Value(0)).current;
-  const dot2 = useRef(new Animated.Value(0)).current;
-  const dot3 = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const DUR    = 2400;
-    const smooth = Easing.bezier(0.37, 0, 0.63, 1);
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(logoScale, { toValue: 1.045, duration: DUR / 2, easing: smooth, useNativeDriver: true }),
-        Animated.timing(logoScale, { toValue: 1,     duration: DUR / 2, easing: smooth, useNativeDriver: true }),
-      ])
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(billsProgress, { toValue: 1, duration: DUR * 0.46, easing: smooth, useNativeDriver: true }),
-        Animated.timing(billsProgress, { toValue: 0, duration: DUR * 0.54, easing: smooth, useNativeDriver: true }),
-      ])
-    ).start();
-
-    const makeDot = (anim: Animated.Value, delay: number) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(anim, { toValue: 1, duration: 380, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-          Animated.timing(anim, { toValue: 0, duration: 380, easing: Easing.in(Easing.ease),  useNativeDriver: true }),
-          Animated.delay(840 - delay),
-        ])
-      );
-
-    makeDot(dot1, 0).start();
-    makeDot(dot2, 180).start();
-    makeDot(dot3, 360).start();
-  }, []);
-
-  const bill1Rotate  = billsProgress.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "-6deg"] });
-  const bill1Y       = billsProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -(LOGO_H * 0.03)] });
-  const bill1Opacity = billsProgress.interpolate({ inputRange: [0, 0.08, 1], outputRange: [0, 1, 1] });
-  const bill2Rotate  = billsProgress.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "4deg"] });
-  const bill2Y       = billsProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -(LOGO_H * 0.03)] });
-  const bill2Opacity = billsProgress.interpolate({ inputRange: [0, 0.08, 1], outputRange: [0, 0.9, 0.9] });
-
-  const dotStyle = (anim: Animated.Value) => ({
-    transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.5] }) }],
-    opacity:   anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.9] }),
-  });
-
-  return (
-    <View style={overlayStyles.root}>
-      <Animated.View style={{ width: LOGO_W, height: LOGO_H, transform: [{ scale: logoScale }] }}>
-        <Animated.View style={[overlayStyles.layer, { width: LOGO_W, height: LOGO_H, opacity: bill1Opacity, transform: [{ translateX: -3 }, { translateY: bill1Y }, { rotate: bill1Rotate }] }]}>
-          <SvgXml xml={_bill1Svg} width={LOGO_W} height={LOGO_H} />
-        </Animated.View>
-        <Animated.View style={[overlayStyles.layer, { width: LOGO_W, height: LOGO_H, opacity: bill2Opacity, transform: [{ translateX: 3 }, { translateY: bill2Y }, { rotate: bill2Rotate }] }]}>
-          <SvgXml xml={_bill2Svg} width={LOGO_W} height={LOGO_H} />
-        </Animated.View>
-        <View style={[overlayStyles.layer, { width: LOGO_W, height: LOGO_H, zIndex: 10 }]}>
-          <SvgXml xml={_walletBodySvg} width={LOGO_W} height={LOGO_H} />
-        </View>
-      </Animated.View>
-
-      <View style={overlayStyles.dotsRow}>
-        <Animated.View style={[overlayStyles.dot, dotStyle(dot1)]} />
-        <Animated.View style={[overlayStyles.dot, dotStyle(dot2)]} />
-        <Animated.View style={[overlayStyles.dot, dotStyle(dot3)]} />
-      </View>
-
-      <Text style={overlayStyles.label}>{t("add.analyzing")}</Text>
-    </View>
-  );
-}
-
-const overlayStyles = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: "rgba(0,0,0,0.88)", alignItems: "center", justifyContent: "center" },
-  layer:   { position: "absolute", top: 0, left: 0 },
-  dotsRow: { flexDirection: "row", gap: 7, marginTop: 48 },
-  dot:     { width: 6, height: 6, borderRadius: 3, backgroundColor: "#ffffff" },
-  label:   { marginTop: 18, fontSize: 11, fontWeight: "600", letterSpacing: 0.18, color: "rgba(255,255,255,0.45)", textTransform: "uppercase" },
-});
-
-// ─── QR Scanner Modal ─────────────────────────────────────────────────────────
-// Целосно исклучен додека camera пакетите не се вратат во проектот.
-// interface QRScannerModalProps {
-//   visible: boolean;
-//   onClose: () => void;
-//   onScanned: (payload: string, photoBase64?: string) => void;
-// }
-//
-// function QRScannerModal({ visible, onClose, onScanned }: QRScannerModalProps) {
-//   const { t } = useTranslation();
-//   const cameraRef = useRef<CameraView>(null);
-//   const [permission, requestPermission] = useCameraPermissions();
-//   const hasScanned = useRef(false);
-//   const [scanned, setScanned] = useState(false);
-//   const insets = useSafeAreaInsets();
-//
-//   React.useEffect(() => {
-//     if (!visible) {
-//       hasScanned.current = false;
-//       setScanned(false);
-//     }
-//   }, [visible]);
-//
-//   const handleBarCodeScanned = useCallback(
-//     async ({ data }: { data: string }) => {
-//       if (hasScanned.current) return;
-//       hasScanned.current = true;
-//       setScanned(true);
-//       Vibration.vibrate(80);
-//
-//       let photoBase64: string | undefined;
-//       try {
-//         const photo = await cameraRef.current?.takePictureAsync({
-//           base64: true,
-//           quality: 0.92,
-//           skipProcessing: false,
-//         });
-//         photoBase64 = photo?.base64 ?? undefined;
-//       } catch {}
-//
-//       setTimeout(() => {
-//         onScanned(data, photoBase64);
-//         onClose();
-//       }, 350);
-//     },
-//     [onScanned, onClose]
-//   );
-//
-//   if (!permission) {
-//     return (
-//       <Modal visible={visible} animationType="fade">
-//         <View style={scanStyles.permContainer}>
-//           <ActivityIndicator color="#fff" size="large" />
-//         </View>
-//       </Modal>
-//     );
-//   }
-//
-//   if (!permission.granted) {
-//     return (
-//       <Modal visible={visible} animationType="slide">
-//         <View style={scanStyles.permContainer}>
-//           <Ionicons name="camera-outline" size={60} color="rgba(255,255,255,0.5)" />
-//           <Text style={scanStyles.permTitle}>{t("add.scanner.needCamera")}</Text>
-//           <Text style={scanStyles.permSub}>{t("add.scanner.cameraSub")}</Text>
-//           <TouchableOpacity style={scanStyles.permBtn} onPress={requestPermission}>
-//             <Text style={scanStyles.permBtnText}>{t("add.scanner.giveAccess")}</Text>
-//           </TouchableOpacity>
-//           <TouchableOpacity style={scanStyles.closeTextBtn} onPress={onClose}>
-//             <Text style={scanStyles.closeTextBtnText}>{t("add.scanner.cancel")}</Text>
-//           </TouchableOpacity>
-//         </View>
-//       </Modal>
-//     );
-//   }
-//
-//   return (
-//     <Modal visible={visible} animationType="slide" statusBarTranslucent>
-//       <View style={scanStyles.root}>
-//         <CameraView
-//           ref={cameraRef}
-//           key={visible ? "active" : "inactive"}
-//           style={StyleSheet.absoluteFill}
-//           facing="back"
-//           onBarcodeScanned={handleBarCodeScanned}
-//         />
-//
-//         <View style={[scanStyles.topBar, { paddingTop: insets.top + 12 }]}>
-//           <Text style={scanStyles.topTitle}>{t("add.scanner.title")}</Text>
-//           <Text style={scanStyles.topSub}>
-//             {scanned ? t("add.scanner.scanned") : t("add.scanner.hint")}
-//           </Text>
-//         </View>
-//
-//         {scanned && (
-//           <View style={scanStyles.successBanner}>
-//             <Ionicons name="checkmark-circle" size={22} color="#fff" />
-//             <Text style={scanStyles.successText}>{t("add.scanner.success")}</Text>
-//           </View>
-//         )}
-//
-//         <View style={[scanStyles.bottomBar, { paddingBottom: insets.bottom + 20 }]}>
-//           <TouchableOpacity style={scanStyles.closeBtn} onPress={onClose}>
-//             <Ionicons name="close" size={20} color="#fff" />
-//             <Text style={scanStyles.closeBtnText}>{t("add.scanner.close")}</Text>
-//           </TouchableOpacity>
-//         </View>
-//       </View>
-//     </Modal>
-//   );
-// }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function AddTransactionScreen() {
@@ -340,9 +41,7 @@ export default function AddTransactionScreen() {
   const [subcategoryId, setSubcategoryId]   = useState<string | undefined>();
   const [useAI, setUseAI]                   = useState(true);
   const [isCategorizing, setIsCategorizing] = useState(false);
-  const [isAnalyzingReceipt, setIsAnalyzingReceipt] = useState(false);
   const [showToast, setShowToast]           = useState(false);
-  // const [scannerVisible, setScannerVisible] = useState(false);
 
   const toastAnim   = useRef(new Animated.Value(0)).current;
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -426,32 +125,6 @@ export default function AddTransactionScreen() {
     ]).start(() => setShowToast(false));
   };
 
-  // ── QR scanned handler ────────────────────────────────────────────────────
-  const handleQRScanned = async (payload: string, photoBase64?: string) => {
-    const applyOfflineFallback = (opts: { skipAmount?: boolean } = {}) => {
-      const parsed = parseQRPayload(payload);
-      if (parsed.merchant) { setMerchant(parsed.merchant); scheduleAI(parsed.merchant, ""); }
-      if (!opts.skipAmount && parsed.amount) setAmountText(String(parsed.amount));
-    };
-
-    if (photoBase64) {
-      setIsAnalyzingReceipt(true);
-      try {
-        const result = await analyzeReceiptImage(photoBase64, payload);
-        if (result.amount && result.amount > 0) setAmountText(String(result.amount));
-        if (result.merchant) { setMerchant(result.merchant); scheduleAI(result.merchant, ""); }
-        else applyOfflineFallback({ skipAmount: !!result.amount });
-      } catch (err) {
-        applyOfflineFallback();
-      } finally {
-        setIsAnalyzingReceipt(false);
-      }
-      return;
-    }
-
-    applyOfflineFallback();
-  };
-
   const selectedCat = findCategory(categories, categoryId);
   const selectedSub = selectedCat?.subcategories.find((s) => s.id === subcategoryId);
 
@@ -477,22 +150,6 @@ export default function AddTransactionScreen() {
                 <Text style={styles.toastText}>{t("add.saved")}</Text>
               </Animated.View>
             )}
-
-            {/* Scan button AKtiviraj koga ke sakas */}
-            {/*<TouchableOpacity
-              style={[styles.scanBtn, { borderColor: colors.separator, backgroundColor: colors.card }]}
-              onPress={() => setScannerVisible(true)}
-              activeOpacity={0.75}
-            >
-              <View style={[styles.scanBtnIcon, { backgroundColor: `${colors.accent}15` }]}>
-                <Ionicons name="qr-code-outline" size={20} color={colors.accent} />
-              </View>
-              <View style={styles.scanBtnTextWrap}>
-                <Text style={[styles.scanBtnTitle, { color: colors.text }]}>{t("add.scanReceipt")}</Text>
-                <Text style={[styles.scanBtnSub, { color: colors.textTertiary }]}>{t("add.scanReceiptSub")}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-            </TouchableOpacity>*/}
 
             {/* Transaction card */}
             <View style={styles.section}>
@@ -683,17 +340,6 @@ export default function AddTransactionScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      {isAnalyzingReceipt && (
-        <Modal visible transparent animationType="fade">
-          <ReceiptLoadingOverlay />
-        </Modal>
-      )}
-
-      {/* <QRScannerModal
-        visible={scannerVisible}
-        onClose={() => setScannerVisible(false)}
-        onScanned={handleQRScanned}
-      /> */}
     </>
   );
 }
@@ -755,43 +401,4 @@ const styles = StyleSheet.create({
     paddingVertical: 10, borderRadius: 30, flexDirection: "row", alignItems: "center", gap: 6,
   },
   toastText: { color: "#fff", fontSize: 15, fontWeight: "500" },
-});
-
-const scanStyles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#000" },
-  topBar: {
-    position: "absolute", top: 0, left: 0, right: 0,
-    alignItems: "center", paddingBottom: 20, paddingHorizontal: 24,
-    backgroundColor: "rgba(0,0,0,0.45)",
-  },
-  topTitle: { color: "#fff", fontSize: 18, fontWeight: "700", letterSpacing: 0.2 },
-  topSub:   { color: "rgba(255,255,255,0.75)", fontSize: 13, marginTop: 4, textAlign: "center" },
-  successBanner: {
-    position: "absolute", top: "45%", alignSelf: "center",
-    flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: "rgba(52,199,89,0.9)", paddingHorizontal: 28,
-    paddingVertical: 14, borderRadius: 30,
-  },
-  successText: { color: "#fff", fontSize: 17, fontWeight: "700" },
-  bottomBar: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    alignItems: "center", backgroundColor: "rgba(0,0,0,0.45)", paddingTop: 20,
-  },
-  closeBtn: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "rgba(255,255,255,0.18)", paddingHorizontal: 32,
-    paddingVertical: 14, borderRadius: 30, borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-  },
-  closeBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  permContainer: {
-    flex: 1, backgroundColor: "#000", alignItems: "center",
-    justifyContent: "center", gap: 16, paddingHorizontal: 32,
-  },
-  permTitle:    { color: "#fff", fontSize: 22, fontWeight: "700" },
-  permSub:      { color: "rgba(255,255,255,0.55)", fontSize: 15, textAlign: "center", lineHeight: 22 },
-  permBtn:      { backgroundColor: "#007AFF", borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14, marginTop: 8 },
-  permBtnText:  { color: "#fff", fontSize: 16, fontWeight: "600" },
-  closeTextBtn: { marginTop: 4 },
-  closeTextBtnText: { color: "rgba(255,255,255,0.45)", fontSize: 15 },
 });

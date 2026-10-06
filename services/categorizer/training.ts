@@ -34,7 +34,7 @@ export class TrainingManager {
     const existing = await this.store.loadModel();
     if (existing && existing.totalSamples > 0) {
       this.categorizer.setModel(existing);
-      console.log(
+      if (__DEV__) console.log(
         `[ML] Loaded persisted model — ${existing.totalSamples} samples, ` +
           `${Object.keys(existing.classCounts).length} classes.`
       );
@@ -52,13 +52,13 @@ export class TrainingManager {
   async seedFromCSV(csvContent: string): Promise<void> {
     const samples = parseDatasetCSV(csvContent);
     if (samples.length === 0) {
-      console.warn("[ML] CSV parsed 0 samples — check format.");
+      if (__DEV__) console.warn("[ML] CSV parsed 0 samples — check format.");
       return;
     }
 
     await this.store.saveAllSamples(samples);
     await this._retrain(samples);
-    console.log(`[ML] Seeded model from CSV — ${samples.length} samples.`);
+    if (__DEV__) console.log(`[ML] Seeded model from CSV — ${samples.length} samples.`);
   }
 
   /**
@@ -71,7 +71,7 @@ export class TrainingManager {
     const sample: TrainingSample = { text, label };
 
     const pendingCount = await this.store.addPendingSample(sample);
-    console.log(`[ML] Correction recorded. Pending: ${pendingCount}/${RETRAIN_THRESHOLD}`);
+    if (__DEV__) console.log(`[ML] Correction recorded. Pending: ${pendingCount}/${RETRAIN_THRESHOLD}`);
 
     if (pendingCount >= RETRAIN_THRESHOLD) {
       await this.retrainFromAllSamples();
@@ -90,7 +90,7 @@ export class TrainingManager {
     await this.store.clearPendingSamples();
 
     await this._retrain(allSamples);
-    console.log(`[ML] Retrained on ${allSamples.length} total samples.`);
+    if (__DEV__) console.log(`[ML] Retrained on ${allSamples.length} total samples.`);
   }
 
   /** How many corrections are waiting to be folded in. */

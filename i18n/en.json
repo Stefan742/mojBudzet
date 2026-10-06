@@ -49,8 +49,6 @@
   },
   "add": {
     "title": "Add",
-    "scanReceipt": "Scan receipt",
-    "scanReceiptSub": "Auto-fill from image",
     "merchant": "Merchant (e.g. VERO, EVN, Pharmacy)",
     "amount": "Amount",
     "saved": "Saved",
@@ -69,19 +67,7 @@
       "note": "NOTE",
       "category": "Category",
       "subcategory": "Subcategory"
-    },
-    "scanner": {
-      "title": "Scan receipt",
-      "hint": "Point the camera at the QR code",
-      "scanned": "Scanned ✓",
-      "success": "QR scanned!",
-      "close": "Close",
-      "needCamera": "Camera required",
-      "cameraSub": "Grant camera access to scan QR codes.",
-      "giveAccess": "Grant access",
-      "cancel": "Cancel"
-    },
-    "analyzing": "AI is reading the receipt..."
+    }
   },
   "budget": {
     "title": "Budget",
@@ -182,10 +168,6 @@
     "categories": "CATEGORIES",
     "addCategory": "Add category",
     "subcats": "subcats.",
-    "bank": "BANK",
-    "connectBank": "Connect bank card",
-    "bankFooter": "Demo connection. For production, integrate PSD2/Open Banking provider.",
-    "syncOk": "Sync successful ✓",
     "about": "ABOUT",
     "version": "Version",
     "editor": {

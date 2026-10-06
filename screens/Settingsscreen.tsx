@@ -8,7 +8,6 @@ import {
   Modal,
   ScrollView,
   Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -42,8 +41,6 @@ export default function SettingsScreen() {
 
   const [editing, setEditing]           = useState<Category | null>(null);
   const [newCategory, setNewCategory]   = useState<Category | null>(null);
-  const [bankSyncing, setBankSyncing]   = useState(false);
-  const [bankMessage, setBankMessage]   = useState<string | null>(null);
 
   const [year, month] = thisMonth.split("-").map(Number);
   const monthLabel = new Date(year, month - 1, 1).toLocaleString(
@@ -56,14 +53,6 @@ export default function SettingsScreen() {
       { text: t("common.cancel"), style: "cancel" },
       { text: t("common.delete"), style: "destructive", onPress: () => deleteCategory(id) },
     ]);
-  };
-
-  const handleSyncBank = async () => {
-    setBankSyncing(true);
-    setBankMessage(null);
-    await new Promise((r) => setTimeout(r, 1500));
-    setBankSyncing(false);
-    setBankMessage(t("settings.syncOk"));
   };
 
   const handleChangeLanguage = (lang: string) => {
@@ -95,7 +84,6 @@ export default function SettingsScreen() {
     sep:           { backgroundColor: colors.separator },
     catName:       { color: colors.text },
     subCount:      { color: colors.textTertiary },
-    bankMessage:   { color: colors.success },
   };
 
   return (
@@ -242,39 +230,6 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* Bank */}
-        {/* <View style={styles.section}>
-          <Text style={[styles.sectionHeader, d.sectionHeader]}>{t("settings.bank")}</Text>
-          <View style={[styles.card, d.card]}>
-            <TouchableOpacity
-              style={styles.row}
-              onPress={handleSyncBank}
-              disabled={bankSyncing}
-            >
-              <View style={[styles.bankIcon, { backgroundColor: `${colors.accent}18` }]}>
-                <Ionicons name="card" size={18} color={colors.accent} />
-              </View>
-              <Text style={[styles.rowLabel, { color: colors.accent }]}>
-                {t("settings.connectBank")}
-              </Text>
-              {bankSyncing ? (
-                <ActivityIndicator size="small" style={{ marginLeft: "auto" }} />
-              ) : (
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={colors.textTertiary}
-                  style={{ marginLeft: "auto" }}
-                />
-              )}
-            </TouchableOpacity>
-            {bankMessage && (
-              <Text style={[styles.bankMessage, d.bankMessage]}>{bankMessage}</Text>
-            )}
-          </View>
-          <Text style={[styles.footer, d.footer]}>{t("settings.bankFooter")}</Text>
-        </View> */}
 
         {/* About */}
         <View style={styles.section}>
@@ -594,11 +549,6 @@ const styles = StyleSheet.create({
     gap: 8, paddingHorizontal: 16, paddingVertical: 14,
   },
   addCatText:  { fontSize: 16 },
-  bankIcon: {
-    width: 32, height: 32, borderRadius: 8,
-    alignItems: "center", justifyContent: "center", marginRight: 12,
-  },
-  bankMessage: { fontSize: 13, paddingHorizontal: 16, paddingBottom: 12 },
   themeIcon: {
     width: 32, height: 32, borderRadius: 8, color: "#fff",
     alignItems: "center", justifyContent: "center", marginRight: 12,
