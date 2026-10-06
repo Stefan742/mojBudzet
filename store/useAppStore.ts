@@ -203,7 +203,11 @@ export const useAppStore = create<AppStoreState>()(
       },
 
       addCategory: (c: Category) =>
-        set((s) => ({ categories: [...s.categories, c] })),
+        set((s) => {
+          // Ids must be unique: chip selection, edit, delete and budgets all key on them.
+          const idTaken = s.categories.some((x) => x.id === c.id);
+          return { categories: [...s.categories, idTaken ? { ...c, id: uuid() } : c] };
+        }),
 
       updateCategory: (c: Category) =>
         set((s) => ({

@@ -35,7 +35,7 @@ export default function SettingsScreen() {
   const insets         = useSafeAreaInsets();
 
   const [editing, setEditing]           = useState<Category | null>(null);
-  const [showNew, setShowNew]           = useState(false);
+  const [newCategory, setNewCategory]   = useState<Category | null>(null);
   const [bankSyncing, setBankSyncing]   = useState(false);
   const [bankMessage, setBankMessage]   = useState<string | null>(null);
   const [currencyText, setCurrencyText] = useState(currency);
@@ -61,12 +61,16 @@ export default function SettingsScreen() {
     setLanguage(lang); // ← зачувува во Zustand/AsyncStorage
   };
 
-  const newCategory: Category = {
-    id: uuid(),
-    name: "",
-    colorHex: "#9C27B0",
-    iconName: "tag",
-    subcategories: [],
+  // The id must be created here, not during render: React Compiler caches
+  // render-time values, which gave every new category the same id.
+  const handleAddCategory = () => {
+    setNewCategory({
+      id: uuid(),
+      name: "",
+      colorHex: "#9C27B0",
+      iconName: "tag",
+      subcategories: [],
+    });
   };
 
   const d = {
@@ -222,7 +226,7 @@ export default function SettingsScreen() {
               </View>
             ))}
             <View style={[styles.sep, d.sep]} />
-            <TouchableOpacity style={styles.addCatRow} onPress={() => setShowNew(true)}>
+            <TouchableOpacity style={styles.addCatRow} onPress={handleAddCategory}>
               <Ionicons name="add-circle" size={20} color={colors.accent} />
               <Text style={[styles.addCatText, { color: colors.accent }]}>
                 {t("settings.addCategory")}
@@ -285,11 +289,11 @@ export default function SettingsScreen() {
           onDelete={() => { handleDeleteCategory(editing.id); setEditing(null); }}
         />
       )}
-      {showNew && (
+      {newCategory && (
         <CategoryEditorModal
           category={newCategory}
           isNew
-          onClose={() => setShowNew(false)}
+          onClose={() => setNewCategory(null)}
         />
       )}
     </View>
