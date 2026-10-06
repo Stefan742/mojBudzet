@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
 import { formatAmount } from "../utils/helpers";
 import { Category, incomeForMonth, monthKey } from "../models";
+import { spentInCategory } from "../store/selectors";
 import {
   generateBudgetSuggestion,
   BudgetSuggestion,
@@ -254,7 +255,7 @@ function BudgetRow({ category }: { category: Category }) {
   const setBudget    = useAppStore((s) => s.setBudget);
   // Select the number, not the function: selecting s.monthlySpent never changes,
   // so the row was not re-rendered when transactions were added.
-  const spent        = useAppStore((s) => s.monthlySpent(category.id));
+  const spent        = useAppStore((s) => spentInCategory(s.transactions, category.id, monthKey(new Date())));
 
   const limit    = budgets.find((b) => b.categoryId === category.id)?.monthlyLimit ?? 0;
   const progress = limit > 0 ? Math.min(1, spent / limit) : 0;

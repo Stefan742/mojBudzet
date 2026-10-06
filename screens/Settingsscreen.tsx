@@ -25,7 +25,6 @@ import i18n from "../i18n";
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const categories     = useAppStore((s) => s.categories);
-  const currency       = useAppStore((s) => s.currency);
   const initialBalance = useAppStore((s) => s.initialBalance);
   const setInitialBalance = useAppStore((s) => s.setInitialBalance);
   const setMonthlyIncome  = useAppStore((s) => s.setMonthlyIncome);
@@ -45,7 +44,6 @@ export default function SettingsScreen() {
   const [newCategory, setNewCategory]   = useState<Category | null>(null);
   const [bankSyncing, setBankSyncing]   = useState(false);
   const [bankMessage, setBankMessage]   = useState<string | null>(null);
-  const [currencyText, setCurrencyText] = useState(currency);
 
   const [year, month] = thisMonth.split("-").map(Number);
   const monthLabel = new Date(year, month - 1, 1).toLocaleString(
@@ -115,13 +113,7 @@ export default function SettingsScreen() {
           <View style={[styles.card, d.card]}>
             <View style={styles.row}>
               <Text style={[styles.rowLabel, d.rowLabel]}>{t("settings.currency")}</Text>
-              <TextInput
-                style={[styles.rowInput, d.rowInput]}
-                value={currencyText}
-                onChangeText={setCurrencyText}
-                autoCapitalize="characters"
-                placeholderTextColor={colors.textTertiary}
-              />
+              <Text style={[styles.rowValue, d.rowValue]}>{t("common.currency")}</Text>
             </View>
             <View style={[styles.sep, d.sep]} />
             <AmountRow

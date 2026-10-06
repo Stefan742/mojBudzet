@@ -6,64 +6,73 @@ import {
   Category,
   Transaction,
   TransactionKind,
-  CategoryBudget,
   SavingsGoal,
   monthKey,
   withIncomeFrom,
 } from "../models";
 import { defaultCategories } from "../models/Category";
-import { dedupeCategoryIds } from "./migrations";
+import {
+  STORE_VERSION,
+  migratePersistedState,
+  refreshDefaultCategories,
+} from "./migrations";
+import i18n from "../i18n";
 import { v4 as uuid } from "uuid";
 
 const STORAGE_KEY = "budget_state";
 
-interface ComputedActions {
-  currentBalance: () => number;
-  totalExpenses: () => number;
-  totalIncome: () => number;
-  category: (id?: string) => Category | undefined;
-  subcategory: (
-    categoryId?: string,
-    subId?: string
-  ) => { id: string; name: string; keywords: string[] } | undefined;
-  expensesByCategory: (month?: Date) => [Category, number][];
-  monthlySpent: (categoryId: string, month?: Date) => number;
-}
+// Derived values (balance, totals, spent per category) live in ./selectors as
+// pure functions, so components subscribe to the data they read (Q-2).
 
-interface MutationActions {
+interface Actions {
   completeOnboarding: (balance: number, monthlyIncome?: number) => void;
-  addTransaction: (t: Transaction) => void;
-  updateTransaction: (t: Transaction) => void;
-  deleteTransaction: (id: string) => void;
-  setBudget: (categoryId: string, limit: number) => void;
-  addCategory: (c: Category) => void;
-  updateCategory: (c: Category) => void;
-  deleteCategory: (id: string) => void;
-  addGoal: (g: SavingsGoal) => void;
-  updateGoal: (g: SavingsGoal) => void;
-  deleteGoal: (id: string) => void;
   setInitialBalance: (balance: number) => void;
   /** Sets the monthly income from the current month onward (whole MKD). */
   setMonthlyIncome: (amount: number) => void;
+
+  addTransaction: (t: Transaction) => void;
+  updateTransaction: (t: Transaction) => void;
+  /** Deleting a SAVINGS transaction also takes the money back out of its pot. */
+  deleteTransaction: (id: string) => void;
+
+  /** A limit of 0 removes the budget. */
+  setBudget: (categoryId: string, limit: number) => void;
   applyBudgetSuggestions: (
     suggestions: { categoryId: string; suggestedMonthlyLimit: number }[]
   ) => void;
-  // ── Сеф ──────────────────────────────────────────────────────────────────
-  addToVault: (amount: number) => void;
+
+  addCategory: (c: Category) => void;
+  updateCategory: (c: Category) => void;
+  /** Also removes its budget; its transactions become uncategorized. */
+  deleteCategory: (id: string) => void;
+
+  addGoal: (g: SavingsGoal) => void;
+  updateGoal: (g: SavingsGoal) => void;
+  /** The goal's saved money moves to the vault; nothing is lost. */
+  deleteGoal: (id: string) => void;
+  /**
+   * Moves money from the balance into savings: a goal, or the vault when
+   * goalId is null. Recorded as a SAVINGS transaction, so the balance and the
+   * savings always agree.
+   */
+  saveFromBalance: (amount: number, goalId: string | null, note: string) => void;
+  /** Moves money between pots; capped at what the vault holds. */
   transferFromVault: (amount: number, goalId: string) => void;
-  setVaultAmount: (amount: number) => void;
-  // ── DARK MODE ─────────────────────────────────────────────────────────────
+
+  /** Marks a month's leftover as handled so the prompt is not shown again. */
+  markRolloverDone: (month: string) => void;
+
   setTheme: (theme: "light" | "dark" | "system") => void;
-  // ── LANGUAGE ─────────────────────────────────────────────────────────────
-  setLanguage: (lang: string) => void;
+  /** null follows the device language. */
+  setLanguage: (lang: string | null) => void;
+
+  /** Deletes all data and returns to onboarding. */
+  resetAll: () => void;
 }
 
-export type AppStoreState = PersistedState &
-  { language: string } &
-  ComputedActions &
-  MutationActions;
+export type AppStoreState = PersistedState & Actions;
 
-const initialState: PersistedState & { language: string } = {
+const initialState: PersistedState = {
   isOnboarded: false,
   initialBalance: 0,
   incomeSchedule: [],
@@ -71,231 +80,204 @@ const initialState: PersistedState & { language: string } = {
   transactions: [],
   budgets: [],
   savingsGoals: [],
-  currency: "МКД",
   vaultAmount: 0,
   theme: "system",
-  language: "mk",
+  language: null,
+  lastRolloverMonth: undefined,
 };
+
+const PERSISTED_KEYS = Object.keys(initialState) as (keyof PersistedState)[];
+
+const deviceLanguage = (): string => i18n.options.lng ?? "mk";
 
 export const useAppStore = create<AppStoreState>()(
   persist(
     (set, get) => ({
       ...initialState,
 
-      // ─── Computed ────────────────────────────────────────────────────────
-
-      currentBalance: () => {
-        const { initialBalance, transactions } = get();
-        return (
-          initialBalance +
-          transactions.reduce(
-            (acc, t) =>
-              acc + (t.kind === TransactionKind.INCOME ? t.amount : -t.amount),
-            0
-          )
-        );
-      },
-
-      totalExpenses: () =>
-        get()
-          .transactions.filter((t) => t.kind === TransactionKind.EXPENSE)
-          .reduce((sum, t) => sum + t.amount, 0),
-
-      totalIncome: () =>
-        get()
-          .transactions.filter((t) => t.kind === TransactionKind.INCOME)
-          .reduce((sum, t) => sum + t.amount, 0),
-
-      category: (id?: string) => {
-        if (!id) return undefined;
-        return get().categories.find((c) => c.id === id);
-      },
-
-      subcategory: (categoryId?: string, subId?: string) => {
-        const cat = get().category(categoryId);
-        if (!cat || !subId) return undefined;
-        return cat.subcategories.find((s) => s.id === subId);
-      },
-
-      expensesByCategory: (month?: Date) => {
-        const { transactions, categories } = get();
-        const filtered = transactions.filter((t) => {
-          if (t.kind !== TransactionKind.EXPENSE) return false;
-          if (month) {
-            const d = new Date(t.date);
-            return (
-              d.getFullYear() === month.getFullYear() &&
-              d.getMonth() === month.getMonth()
-            );
-          }
-          return true;
-        });
-
-        return categories
-          .map((c): [Category, number] => {
-            const sum = filtered
-              .filter((t) => t.categoryId === c.id)
-              .reduce((acc, t) => acc + t.amount, 0);
-            return [c, sum];
-          })
-          .filter(([, sum]) => sum > 0)
-          .sort((a, b) => b[1] - a[1]);
-      },
-
-      monthlySpent: (categoryId: string, month: Date = new Date()) => {
-        return get()
-          .transactions.filter((t) => {
-            const d = new Date(t.date);
-            return (
-              t.kind === TransactionKind.EXPENSE &&
-              t.categoryId === categoryId &&
-              d.getFullYear() === month.getFullYear() &&
-              d.getMonth() === month.getMonth()
-            );
-          })
-          .reduce((sum, t) => sum + t.amount, 0);
-      },
-
-      // ─── Mutations ───────────────────────────────────────────────────────
-
-      completeOnboarding: (balance: number, monthlyIncome = 0) =>
+      completeOnboarding: (balance, monthlyIncome = 0) =>
         set((s) => ({
           initialBalance: balance,
           isOnboarded: true,
+          // Nothing to roll over for the month the user starts in.
+          lastRolloverMonth: monthKey(new Date()),
           incomeSchedule:
             monthlyIncome > 0
               ? withIncomeFrom(s.incomeSchedule, monthKey(new Date()), monthlyIncome)
               : s.incomeSchedule,
         })),
 
-      setInitialBalance: (balance: number) =>
-        set({ initialBalance: balance }),
+      setInitialBalance: (balance) => set({ initialBalance: balance }),
 
-      setMonthlyIncome: (amount: number) =>
+      setMonthlyIncome: (amount) =>
         set((s) => ({
           incomeSchedule: withIncomeFrom(s.incomeSchedule, monthKey(new Date()), amount),
         })),
 
-      addTransaction: (t: Transaction) =>
-        set((s) => ({ transactions: [t, ...s.transactions] })),
+      addTransaction: (t) =>
+        set((s) => ({ transactions: [{ ...t, amount: Math.round(t.amount) }, ...s.transactions] })),
 
-      updateTransaction: (t: Transaction) =>
+      updateTransaction: (t) =>
         set((s) => ({
-          transactions: s.transactions.map((x) => (x.id === t.id ? t : x)),
+          transactions: s.transactions.map((x) =>
+            x.id === t.id ? { ...t, amount: Math.round(t.amount) } : x
+          ),
         })),
 
-      deleteTransaction: (id: string) =>
-        set((s) => ({
-          transactions: s.transactions.filter((x) => x.id !== id),
-        })),
-
-      setBudget: (categoryId: string, limit: number) =>
+      deleteTransaction: (id) =>
         set((s) => {
-          const exists = s.budgets.find((b) => b.categoryId === categoryId);
-          if (exists) {
+          const tx = s.transactions.find((x) => x.id === id);
+          const transactions = s.transactions.filter((x) => x.id !== id);
+          if (!tx || tx.kind !== TransactionKind.SAVINGS) return { transactions };
+          const goal = tx.goalId ? s.savingsGoals.find((g) => g.id === tx.goalId) : undefined;
+          if (goal) {
             return {
-              budgets: s.budgets.map((b) =>
-                b.categoryId === categoryId
-                  ? { ...b, monthlyLimit: limit }
-                  : b
+              transactions,
+              savingsGoals: s.savingsGoals.map((g) =>
+                g.id === goal.id ? { ...g, currentAmount: Math.max(0, g.currentAmount - tx.amount) } : g
               ),
             };
           }
+          return { transactions, vaultAmount: Math.max(0, s.vaultAmount - tx.amount) };
+        }),
+
+      setBudget: (categoryId, limit) =>
+        set((s) => {
+          const rest = s.budgets.filter((b) => b.categoryId !== categoryId);
+          if (limit <= 0) return { budgets: rest };
+          const existing = s.budgets.find((b) => b.categoryId === categoryId);
           return {
             budgets: [
-              ...s.budgets,
-              { id: uuid(), categoryId, monthlyLimit: limit },
+              ...rest,
+              { id: existing?.id ?? uuid(), categoryId, monthlyLimit: Math.round(limit) },
             ],
           };
         }),
 
-      applyBudgetSuggestions: (
-        suggestions: { categoryId: string; suggestedMonthlyLimit: number }[]
-      ) => {
+      applyBudgetSuggestions: (suggestions) => {
         const { setBudget } = get();
         for (const s of suggestions) {
-          if (s.suggestedMonthlyLimit > 0) {
-            setBudget(s.categoryId, s.suggestedMonthlyLimit);
-          }
+          if (s.suggestedMonthlyLimit > 0) setBudget(s.categoryId, s.suggestedMonthlyLimit);
         }
       },
 
-      addCategory: (c: Category) =>
+      addCategory: (c) =>
         set((s) => {
           // Ids must be unique: chip selection, edit, delete and budgets all key on them.
           const idTaken = s.categories.some((x) => x.id === c.id);
           return { categories: [...s.categories, idTaken ? { ...c, id: uuid() } : c] };
         }),
 
-      updateCategory: (c: Category) =>
+      updateCategory: (c) =>
         set((s) => ({
           categories: s.categories.map((x) => (x.id === c.id ? c : x)),
         })),
 
-      deleteCategory: (id: string) =>
+      deleteCategory: (id) =>
         set((s) => ({
           categories: s.categories.filter((c) => c.id !== id),
+          budgets: s.budgets.filter((b) => b.categoryId !== id),
           transactions: s.transactions.map((t) =>
-            t.categoryId === id
-              ? { ...t, categoryId: undefined, subcategoryId: undefined }
-              : t
+            t.categoryId === id ? { ...t, categoryId: undefined, subcategoryId: undefined } : t
           ),
         })),
 
-      addGoal: (g: SavingsGoal) =>
-        set((s) => ({ savingsGoals: [...s.savingsGoals, g] })),
+      addGoal: (g) =>
+        set((s) => ({
+          savingsGoals: [...s.savingsGoals.filter((x) => x.id !== g.id), g],
+        })),
 
-      updateGoal: (g: SavingsGoal) =>
+      updateGoal: (g) =>
         set((s) => ({
           savingsGoals: s.savingsGoals.map((x) => (x.id === g.id ? g : x)),
         })),
 
-      deleteGoal: (id: string) =>
-        set((s) => ({
-          savingsGoals: s.savingsGoals.filter((g) => g.id !== id),
-        })),
+      deleteGoal: (id) =>
+        set((s) => {
+          const goal = s.savingsGoals.find((g) => g.id === id);
+          return {
+            savingsGoals: s.savingsGoals.filter((g) => g.id !== id),
+            vaultAmount: s.vaultAmount + (goal?.currentAmount ?? 0),
+            // Its history stays, now counted as vault money.
+            transactions: s.transactions.map((t) => (t.goalId === id ? { ...t, goalId: undefined } : t)),
+          };
+        }),
 
-      // ─── Сеф ─────────────────────────────────────────────────────────────
+      saveFromBalance: (amount, goalId, note) =>
+        set((s) => {
+          const value = Math.round(amount);
+          if (value <= 0) return {};
+          if (goalId && !s.savingsGoals.some((g) => g.id === goalId)) return {};
+          const tx: Transaction = {
+            id: uuid(),
+            date: new Date().toISOString(),
+            merchant: "",
+            amount: value,
+            kind: TransactionKind.SAVINGS,
+            goalId: goalId ?? undefined,
+            note,
+            source: "Рачно",
+          };
+          return {
+            transactions: [tx, ...s.transactions],
+            ...(goalId
+              ? {
+                  savingsGoals: s.savingsGoals.map((g) =>
+                    g.id === goalId ? { ...g, currentAmount: g.currentAmount + value } : g
+                  ),
+                }
+              : { vaultAmount: s.vaultAmount + value }),
+          };
+        }),
 
-      addToVault: (amount: number) =>
-        set((s) => ({ vaultAmount: s.vaultAmount + amount })),
-
-      transferFromVault: (amount: number, goalId: string) =>
+      transferFromVault: (amount, goalId) =>
         set((s) => {
           const goal = s.savingsGoals.find((g) => g.id === goalId);
           if (!goal) return {};
-          const transfer = Math.min(amount, s.vaultAmount);
+          const transfer = Math.min(Math.round(amount), s.vaultAmount);
+          if (transfer <= 0) return {};
           return {
             vaultAmount: s.vaultAmount - transfer,
             savingsGoals: s.savingsGoals.map((g) =>
-              g.id === goalId
-                ? { ...g, currentAmount: g.currentAmount + transfer }
-                : g
+              g.id === goalId ? { ...g, currentAmount: g.currentAmount + transfer } : g
             ),
           };
         }),
 
-      setVaultAmount: (amount: number) =>
-        set({ vaultAmount: amount }),
+      markRolloverDone: (month) => set({ lastRolloverMonth: month }),
 
-      // ─── DARK MODE ────────────────────────────────────────────────────────
-      setTheme: (theme: "light" | "dark" | "system") =>
-        set({ theme }),
+      setTheme: (theme) => set({ theme }),
 
-      // ─── LANGUAGE ────────────────────────────────────────────────────────
-      setLanguage: (lang: string) =>
-        set({ language: lang }),
+      setLanguage: (lang) => {
+        i18n.changeLanguage(lang ?? deviceLanguage());
+        set({ language: lang });
+      },
+
+      resetAll: () => {
+        set({ ...initialState });
+        i18n.changeLanguage(deviceLanguage());
+      },
     }),
     {
       name: STORAGE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
-      migrate: (persisted, version) => {
-        const state = persisted as Partial<PersistedState>;
-        if (version < 1 && Array.isArray(state.categories)) {
-          state.categories = dedupeCategoryIds(state.categories, uuid);
-        }
-        return state as AppStoreState;
+      version: STORE_VERSION,
+      // Only data is saved, never the action functions (D-3).
+      partialize: (s) =>
+        Object.fromEntries(PERSISTED_KEYS.map((k) => [k, s[k]])) as unknown as PersistedState,
+      migrate: (persisted, version) =>
+        migratePersistedState(persisted, version, { newId: uuid, now: new Date() }) as AppStoreState,
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<PersistedState>;
+        return {
+          ...current,
+          ...saved,
+          categories: refreshDefaultCategories(saved.categories ?? current.categories),
+        };
+      },
+      // Apply the saved language before the first screen renders (B-3).
+      onRehydrateStorage: () => (state) => {
+        if (state?.language) i18n.changeLanguage(state.language);
       },
     }
   )

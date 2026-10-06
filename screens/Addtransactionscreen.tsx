@@ -22,6 +22,7 @@ import { SvgXml } from "react-native-svg";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
 import { TransactionKind } from "../models";
+import { findCategory } from "../store/selectors";
 import { useMLCategorizer } from "../services/categorizer/useMLCategorizer";
 import { v4 as uuid } from "uuid";
 import { useTheme } from "@/hooks/useTheme";
@@ -326,8 +327,7 @@ export default function AddTransactionScreen() {
   const { colors } = useTheme();
   const addTransaction = useAppStore((s) => s.addTransaction);
   const categories     = useAppStore((s) => s.categories);
-  const currency       = useAppStore((s) => s.currency);
-  const category       = useAppStore((s) => s.category);
+  const currency       = t("common.currency");
   const insets         = useSafeAreaInsets();
 
   const { categorize, correct, isReady } = useMLCategorizer({ datasetCSV: MARKET_DATASET_CSV });
@@ -452,7 +452,7 @@ export default function AddTransactionScreen() {
     applyOfflineFallback();
   };
 
-  const selectedCat = category(categoryId);
+  const selectedCat = findCategory(categories, categoryId);
   const selectedSub = selectedCat?.subcategories.find((s) => s.id === subcategoryId);
 
   return (

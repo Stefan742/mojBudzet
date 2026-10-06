@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
 import { formatAmount, formatDate } from "../utils/helpers";
 import { Transaction, TransactionKind } from "../models";
+import { findCategory, findSubcategory } from "../store/selectors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -26,9 +27,8 @@ export default function HistoryScreen() {
   const transactions = useAppStore((s) => s.transactions);
   const deleteTransaction = useAppStore((s) => s.deleteTransaction);
   const updateTransaction = useAppStore((s) => s.updateTransaction);
-  const category = useAppStore((s) => s.category);
-  const subcategory = useAppStore((s) => s.subcategory);
-  const currency = useAppStore((s) => s.currency);
+  const categories = useAppStore((s) => s.categories);
+  const currency = t("common.currency");
 
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Transaction | null>(null);
@@ -54,9 +54,16 @@ export default function HistoryScreen() {
     ]);
   };
 
+  const savingsGoals = useAppStore((s) => s.savingsGoals);
+  const rowTitle = (tx: Transaction) => {
+    if (tx.kind !== TransactionKind.SAVINGS) return tx.merchant;
+    const goal = savingsGoals.find((g) => g.id === tx.goalId);
+    return goal ? t("history.savedToGoal", { name: goal.name }) : t("history.savedToVault");
+  };
+
   const renderItem = ({ item: tx }: { item: Transaction }) => {
-    const cat = category(tx.categoryId);
-    const sub = subcategory(tx.categoryId, tx.subcategoryId);
+    const cat = findCategory(categories, tx.categoryId);
+    const sub = findSubcategory(categories, tx.categoryId, tx.subcategoryId);
 
     return (
       <TouchableOpacity
@@ -68,7 +75,7 @@ export default function HistoryScreen() {
           <Ionicons name="receipt-outline" size={20} color={cat?.colorHex ?? colors.textTertiary} />
         </View>
         <View style={styles.rowInfo}>
-          <Text style={[styles.merchant, { color: colors.text }]}>{tx.merchant}</Text>
+          <Text style={[styles.merchant, { color: colors.text }]}>{rowTitle(tx)}</Text>
           <View style={styles.tags}>
             {cat && <Text style={[styles.tag, { color: colors.textSecondary }]}>{cat.name}</Text>}
             {sub && <Text style={[styles.tag, { color: colors.textSecondary }]}>· {sub.name}</Text>}
@@ -77,7 +84,7 @@ export default function HistoryScreen() {
         </View>
         <View style={styles.rowRight}>
           <Text style={[styles.amount, tx.kind === TransactionKind.INCOME ? styles.income : styles.expense]}>
-            {tx.kind === TransactionKind.EXPENSE ? "-" : "+"}{formatAmount(tx.amount, currency)}
+            {tx.kind === TransactionKind.INCOME ? "+" : "-"}{formatAmount(tx.amount, currency)}
           </Text>
           <Text style={[styles.source, { color: colors.textTertiary }]}>{tx.source}</Text>
         </View>
@@ -151,11 +158,10 @@ function TransactionEditorModal({
   const { t } = useTranslation();
   const { colors } = useTheme();
   const categories = useAppStore((s) => s.categories);
-  const currency = useAppStore((s) => s.currency);
-  const category = useAppStore((s) => s.category);
+  const currency = t("common.currency");
 
   const [tx, setTx] = useState<Transaction>(transaction);
-  const selectedCat = category(tx.categoryId);
+  const selectedCat = findCategory(categories, tx.categoryId);
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet">

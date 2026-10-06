@@ -1,6 +1,8 @@
 export interface Subcategory {
   id: string;
   name: string;
+  /** i18n key for built-in subcategories; removed when the user renames it. */
+  nameKey?: string;
   keywords: string[];
 }
 
@@ -13,6 +15,8 @@ export type Bucket = "needs" | "wants" | "savings" | "emergency" | "debt";
 export interface Category {
   id: string;
   name: string;
+  /** i18n key for built-in categories; removed when the user renames it. */
+  nameKey?: string;
   colorHex: string;
   iconName: string;
   subcategories: Subcategory[];
@@ -32,6 +36,7 @@ export interface Category {
 export const defaultCategories: Category[] = [
   {
     id: "cat-needs",
+    nameKey: "categories.cat-needs",
     name: "Потреби",
     colorHex: "#4CAF50",
     iconName: "cart",
@@ -40,6 +45,7 @@ export const defaultCategories: Category[] = [
     subcategories: [
       {
         id: "sub-food",
+        nameKey: "subcategories.sub-food",
         name: "Храна и пијалоци",
         keywords: [
           "маркет", "market", "vero", "tinex", "ramstor",
@@ -48,6 +54,7 @@ export const defaultCategories: Category[] = [
       },
       {
         id: "sub-bills",
+        nameKey: "subcategories.sub-bills",
         name: "Сметки",
         keywords: [
           "евн", "вода", "струја", "парно", "интернет",
@@ -56,6 +63,7 @@ export const defaultCategories: Category[] = [
       },
       {
         id: "sub-health",
+        nameKey: "subcategories.sub-health",
         name: "Здравје",
         keywords: [
           "аптека", "apteka", "болница", "лекар", "клиника",
@@ -66,6 +74,7 @@ export const defaultCategories: Category[] = [
   },
   {
     id: "cat-wants",
+    nameKey: "categories.cat-wants",
     name: "Желби",
     colorHex: "#FF9800",
     iconName: "heart",
@@ -74,11 +83,13 @@ export const defaultCategories: Category[] = [
     subcategories: [
       {
         id: "sub-shopping",
+        nameKey: "subcategories.sub-shopping",
         name: "Шопинг",
         keywords: ["zara", "h&m", "mall", "sinsay", "lc waikiki", "obleka", "tehnologija", "stradivarius",],
       },
       {
         id: "sub-restaurants",
+        nameKey: "subcategories.sub-restaurants",
         name: "Ресторани",
         keywords: [
           "restaurant", "pizza", "burger", "kfc", "mcdonald", "cafe", "bar", "jadenje",
@@ -88,6 +99,7 @@ export const defaultCategories: Category[] = [
   },
   {
     id: "cat-investments",
+    nameKey: "categories.cat-investments",
     name: "Инвестиции",
     colorHex: "#2196F3",
     iconName: "trending-up",
@@ -96,11 +108,13 @@ export const defaultCategories: Category[] = [
     subcategories: [
       {
         id: "sub-stocks",
+        nameKey: "subcategories.sub-stocks",
         name: "Акции",
         keywords: ["stocks", "etf", "berza", "akcii"],
       },
       {
         id: "sub-crypto",
+        nameKey: "subcategories.sub-crypto",
         name: "Крипто",
         keywords: ["crypto", "btc", "bitcoin", "binance"],
       },
@@ -108,6 +122,7 @@ export const defaultCategories: Category[] = [
   },
   {
     id: "cat-emergency",
+    nameKey: "categories.cat-emergency",
     name: "Итни случаи",
     colorHex: "#F44336",
     iconName: "warning",
@@ -116,9 +131,16 @@ export const defaultCategories: Category[] = [
     subcategories: [
       {
         id: "sub-unexpected",
+        nameKey: "subcategories.sub-unexpected",
         name: "Непредвидени",
         keywords: ["сервис", "поправка", "итно", "kazna"],
       },
     ],
   },
 ];
+
+/** Display name: the translated built-in name, or the name the user typed. */
+export const categoryLabel = (
+  c: { name: string; nameKey?: string },
+  t: (key: string) => string
+): string => (c.nameKey ? t(c.nameKey) : c.name);

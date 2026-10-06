@@ -396,9 +396,9 @@ export default function SavingsScreen() {
 
   const savingsGoals      = useAppStore((s) => s.savingsGoals);
   const vaultAmount       = useAppStore((s) => s.vaultAmount);
-  const currency          = useAppStore((s) => s.currency);
+  const currency          = t("common.currency");
   const deleteGoal        = useAppStore((s) => s.deleteGoal);
-  const updateGoal        = useAppStore((s) => s.updateGoal);
+  const saveFromBalance   = useAppStore((s) => s.saveFromBalance);
   const transferFromVault = useAppStore((s) => s.transferFromVault);
 
   const insets = useSafeAreaInsets();
@@ -417,10 +417,11 @@ export default function SavingsScreen() {
 
   const handleAddAmount = (goal: SavingsGoal, amount: number) => {
     const prevRatio = goal.currentAmount / goal.targetAmount;
-    const newCurrent = Math.min(goal.targetAmount, goal.currentAmount + amount);
+    // Taken from the balance; not capped at the target, so nothing is dropped (D-5).
+    const newCurrent = goal.currentAmount + amount;
     const newRatio = newCurrent / goal.targetAmount;
 
-    updateGoal({ ...goal, currentAmount: newCurrent });
+    saveFromBalance(amount, goal.id, "");
 
     if (!notified50.current.has(goal.id) && newRatio >= 0.5 && prevRatio < 0.5) {
       notified50.current.add(goal.id);

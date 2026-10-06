@@ -10,8 +10,7 @@ export interface IncomeEntry {
   amount: number;
 }
 
-export const monthKey = (date: Date): string =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+export { monthKey } from "../utils/dates";
 
 /** Income in effect for `month` ("YYYY-MM"), or 0 if none was set yet. */
 export const incomeForMonth = (schedule: IncomeEntry[], month: string): number => {
