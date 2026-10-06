@@ -20,7 +20,8 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#E6F4FE"
+        "monochromeImage": "./assets/images/adaptive-icon-monochrome.png",
+        "backgroundColor": "#FFFFFF"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -38,6 +39,7 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
           "dark": {
+            "image": "./assets/images/splash-icon-dark.png",
             "backgroundColor": "#000000"
           }
         }
