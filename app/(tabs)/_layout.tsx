@@ -392,6 +392,30 @@ function IOSTabBar({ focusedName, navigate, moreOpen, onMorePress }: BarProps) {
   );
 }
 
+/** Material ripple on Android; a plain touchable elsewhere (the ripple API is Android-only). */
+function Ripple({
+  rippleColor,
+  borderless = false,
+  children,
+  ...rest
+}: Omit<React.ComponentProps<typeof TouchableNativeFeedback>, "background"> & {
+  rippleColor: string;
+  borderless?: boolean;
+}) {
+  if (Platform.OS !== "android") {
+    return (
+      <TouchableOpacity activeOpacity={0.7} {...rest}>
+        {children}
+      </TouchableOpacity>
+    );
+  }
+  return (
+    <TouchableNativeFeedback background={TouchableNativeFeedback.Ripple(rippleColor, borderless)} {...rest}>
+      {children}
+    </TouchableNativeFeedback>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Android — Material3 Tab Bar
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -425,9 +449,10 @@ function AndroidTabItem({
   const color = focused ? c.active : c.inactive;
 
   return (
-    <TouchableNativeFeedback
+    <Ripple
       onPress={onPress}
-      background={TouchableNativeFeedback.Ripple(c.ripple, true)}
+      rippleColor={c.ripple}
+      borderless
       accessibilityRole="tab"
       accessibilityLabel={label}
       accessibilityState={{ selected: focused, expanded }}
@@ -443,7 +468,7 @@ function AndroidTabItem({
           {label}
         </Text>
       </View>
-    </TouchableNativeFeedback>
+    </Ripple>
   );
 }
 
@@ -453,9 +478,10 @@ function AndroidAddTabItem({ focused, onPress }: { focused: boolean; onPress: ()
   const c = useAndroidTabColors();
 
   return (
-    <TouchableNativeFeedback
+    <Ripple
       onPress={onPress}
-      background={TouchableNativeFeedback.Ripple(c.ripple, true)}
+      rippleColor={c.ripple}
+      borderless
       accessibilityRole="tab"
       accessibilityLabel={t("tabs.add")}
       accessibilityState={{ selected: focused }}
@@ -477,7 +503,7 @@ function AndroidAddTabItem({ focused, onPress }: { focused: boolean; onPress: ()
           {t("tabs.add")}
         </Text>
       </View>
-    </TouchableNativeFeedback>
+    </Ripple>
   );
 }
 
@@ -530,13 +556,13 @@ function AndroidMoreMenu({
       >
         <View style={[styles.androidSheetHandle, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)" }]} />
         {MORE_ITEMS.map((item) => (
-          <TouchableNativeFeedback
+          <Ripple
             key={item.route}
             onPress={() => {
               onClose();
               onNavigate(item.route);
             }}
-            background={TouchableNativeFeedback.Ripple(isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", false)}
+            rippleColor={isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"}
             accessibilityRole="menuitem"
           >
             <View style={styles.androidSheetRow}>
@@ -546,7 +572,7 @@ function AndroidMoreMenu({
               <Text style={[styles.androidSheetLabel, { color: colors.text }]}>{t(`tabs.${item.key}`)}</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </View>
-          </TouchableNativeFeedback>
+          </Ripple>
         ))}
       </Animated.View>
     </Pressable>

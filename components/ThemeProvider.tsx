@@ -11,6 +11,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Native pieces (alerts, date pickers, keyboard, page sheets) follow the
   // in-app theme choice instead of the system one (U-6).
   useEffect(() => {
+    // Not implemented by react-native-web.
+    if (typeof Appearance.setColorScheme !== "function") return;
     Appearance.setColorScheme(theme === "system" ? "unspecified" : theme);
   }, [theme]);
 
