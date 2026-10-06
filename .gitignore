@@ -41,3 +41,16 @@ app-example
 # generated native folders
 /ios
 /android
+
+.env
+.env.*
+credentials.json
+
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+
+ios/certs/
+# IDE workspace (personal)
+.idea/

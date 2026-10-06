@@ -1,0 +1,4 @@
+{
+  "ios": { "CFBundleDisplayName": "Мој Буџет" },
+  "android": { "app_name": "Мој Буџет" }
+}
