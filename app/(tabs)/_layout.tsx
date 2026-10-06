@@ -53,10 +53,13 @@ const MAIN_TABS = [
 function GlassPill({
   style,
   glassStyle = "regular",
+  tintColor,
   children,
 }: {
   style?: any;
   glassStyle?: "regular" | "clear";
+  /** Потемнува/посветлува glass-от за читливост; на iOS < 26 ја заменува подлогата. */
+  tintColor?: string;
   children: React.ReactNode;
 }) {
   const { isDark } = useTheme();
@@ -70,6 +73,7 @@ function GlassPill({
         style={style}
         glassEffectStyle={glassStyle}
         colorScheme={scheme}
+        tintColor={tintColor}
       >
         {children}
       </GlassView>
@@ -88,9 +92,9 @@ function GlassPill({
         style={[
           StyleSheet.absoluteFill,
           {
-            backgroundColor: isDark
-              ? "rgba(22,22,24,0.45)"
-              : "rgba(255,255,255,0.20)",
+            backgroundColor:
+              tintColor ??
+              (isDark ? "rgba(22,22,24,0.45)" : "rgba(255,255,255,0.20)"),
             borderWidth: 1,
             borderColor: isDark
               ? "rgba(255,255,255,0.10)"
@@ -122,19 +126,26 @@ function MoreMenu({
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (!visible) return;
+    anim.setValue(0);
     Animated.spring(anim, {
-      toValue: visible ? 1 : 0,
+      toValue: 1,
       useNativeDriver: true,
       tension: 70,
       friction: 11,
     }).start();
   }, [visible]);
 
+  // Менито се монтира само кога е отворено: ако GlassView се креира под
+  // родител со opacity 0, glass ефектот воопшто не се рендерира.
+  if (!visible) return null;
+
+  const pillTint = isDark ? "rgba(28,28,30,0.65)" : "rgba(255,255,255,0.65)";
+
   return (
     <Pressable
       style={[StyleSheet.absoluteFill, { zIndex: 99 }]}
       onPress={onClose}
-      pointerEvents={visible ? "auto" : "none"}
     >
       {MORE_ITEMS.map((item, i) => {
         const translateY = anim.interpolate({
@@ -157,10 +168,7 @@ function MoreMenu({
               bottom: bottomOffset,
               right: 24,
               transform: [{ translateY }, { scale }],
-              // Кога не е visible, скалираме на 0 наместо opacity на 0
-              opacity: visible ? 1 : 0,
             }}
-            pointerEvents={visible ? "auto" : "none"}
           >
             <TouchableOpacity
               activeOpacity={0.78}
@@ -170,7 +178,7 @@ function MoreMenu({
                 onNavigate(item.route);
               }}
             >
-              <GlassPill style={styles.moreItemButton} glassStyle="regular">
+              <GlassPill style={styles.moreItemButton} glassStyle="regular" tintColor={pillTint}>
                 <View
                   style={[
                     styles.moreItemBorder,
@@ -972,7 +980,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 13,
     borderRadius: 20,
-    overflow: "hidden",
+    // overflow: "hidden" отстрането — GlassView сам клипира
     minWidth: 150,
   },
   moreItemBorder: {
