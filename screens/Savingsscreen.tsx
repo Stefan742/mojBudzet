@@ -1,255 +1,61 @@
 // screens/SavingsScreen.tsx
 import React, { useRef, useState } from "react";
 import {
-  View, Text, FlatList, TouchableOpacity, TextInput,
+  View, Text, FlatList, TextInput, Pressable,
   StyleSheet, Modal, ScrollView, Switch, Alert,
-  KeyboardAvoidingView, Animated, PanResponder, AccessibilityInfo,
+  KeyboardAvoidingView, Animated, PanResponder,
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Stack, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { v4 as uuid } from "uuid";
 import { useAppStore } from "../store/useAppStore";
+import { showToast } from "../store/session";
 import { SavingsGoal, calculateGoalProgress } from "../models";
-import { formatMoney, validateAmount } from "../utils/money";
+import { formatMoney } from "../utils/money";
 import { formatDate } from "../utils/dates";
+import { haptics } from "../utils/haptics";
 import { useTheme } from "@/hooks/useTheme";
+import { useMotion } from "@/hooks/useMotion";
 import { useAmountField } from "@/hooks/useAmountField";
 import { ModalHeader } from "@/components/ModalHeader";
 import { DateField } from "@/components/DateField";
-import { MIN_TOUCH, useTabBarSpace } from "@/constants/layout";
-import { COLOR_PALETTE } from "@/constants/palette";
-
+import { Icon } from "@/components/Icon";
+import { Button } from "@/components/ui/Button";
+import { PressableRow } from "@/components/ui/Pressables";
+import { Section, Separator } from "@/components/ui/Section";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { COLOR_PALETTE, dataColor } from "@/constants/palette";
+import {
+  GUTTER, ROW_MIN, SECTION_GAP, corners, elevation, inputType, money, radius, space, tint, type,
+} from "@/constants/design";
 
 const isAchieved = (g: SavingsGoal) => g.targetAmount > 0 && g.currentAmount >= g.targetAmount;
 
-// ─── Milestone Toast ──────────────────────────────────────────────────────────
-function useMilestoneToast() {
-  const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
-  const [toast, setToast] = useState<{ msg: string; icon: string } | null>(null);
-  const [translateY] = useState(() => new Animated.Value(-120));
-
-  const show = (msg: string, icon: string) => {
-    setToast({ msg, icon });
-    AccessibilityInfo.announceForAccessibility(msg);
-    Animated.sequence([
-      Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 18, stiffness: 200 }),
-      Animated.delay(2400),
-      Animated.timing(translateY, { toValue: -120, duration: 280, useNativeDriver: true }),
-    ]).start(() => setToast(null));
-  };
-
-  const ToastView = toast ? (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.toast,
-        { top: insets.top + 12, transform: [{ translateY }], backgroundColor: colors.card, borderColor: colors.separator, shadowColor: colors.shadow },
-      ]}
-    >
-      <Text style={styles.toastIcon}>{toast.icon}</Text>
-      <Text style={[styles.toastText, { color: colors.text }]}>{toast.msg}</Text>
-    </Animated.View>
-  ) : null;
-
-  return { show, ToastView };
-}
-
-// ─── Vault Transfer Modal ─────────────────────────────────────────────────────
-interface VaultTransferModalProps {
-  visible: boolean;
-  vaultAmount: number;
-  currency: string;
-  goals: SavingsGoal[];
-  onTransfer: (goalId: string, amount: number) => void;
-  onClose: () => void;
-}
-
-function VaultTransferModal({
-  visible, vaultAmount, currency, goals, onTransfer, onClose,
-}: VaultTransferModalProps) {
-  const { colors } = useTheme();
-  const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
-
-  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
-  const amountField = useAmountField();
-
-  const selectedGoal = goals.find((g) => g.id === selectedGoalId);
-  const parsed = validateAmount(amountField.text);
-  const amount = "amount" in parsed ? parsed.amount : 0;
-  const exceeds = amount > vaultAmount;
-  const canConfirm = !!selectedGoalId && amount > 0 && !exceeds;
-
-  const reset = () => {
-    setSelectedGoalId(null);
-    amountField.reset();
-  };
-
-  const handleConfirm = () => {
-    if (!selectedGoalId || !canConfirm) return;
-    onTransfer(selectedGoalId, amount);
-    reset();
-  };
-
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-        <View style={vtStyles.overlay}>
-          <View style={[vtStyles.sheet, { backgroundColor: colors.card, paddingBottom: 24 + insets.bottom }]}>
-            <View style={[vtStyles.handle, { backgroundColor: colors.separator }]} />
-
-            <Text style={[vtStyles.title, { color: colors.text }]} accessibilityRole="header">
-              {t("savings.vaultTransfer.title")}
-            </Text>
-            <Text style={[vtStyles.subtitle, { color: colors.textSecondary }]}>
-              {t("savings.vaultTransfer.availableAmount", { amount: formatMoney(vaultAmount, currency) })}
-            </Text>
-
-            <View style={[vtStyles.amountRow, { backgroundColor: colors.inputBg }]}>
-              <Text style={[vtStyles.amountLabel, { color: colors.textSecondary }]}>
-                {t("savings.vaultTransfer.amount")}
-              </Text>
-              <TextInput
-                style={[vtStyles.amountInput, { color: colors.text }]}
-                value={amountField.text}
-                onChangeText={amountField.onChangeText}
-                placeholder="0"
-                placeholderTextColor={colors.textTertiary}
-                keyboardType="number-pad"
-                accessibilityLabel={t("savings.vaultTransfer.amount")}
-              />
-              <TouchableOpacity
-                style={[vtStyles.maxBtn, { backgroundColor: colors.vaultBg }]}
-                onPress={() => amountField.setAmount(vaultAmount)}
-                accessibilityRole="button"
-              >
-                <Text style={[vtStyles.maxBtnText, { color: colors.vault }]}>{t("savings.vaultTransfer.all")}</Text>
-              </TouchableOpacity>
-            </View>
-            {exceeds && (
-              <Text style={[vtStyles.error, { color: colors.destructive }]}>
-                {t("savings.vaultTransfer.exceeds", { amount: formatMoney(vaultAmount, currency) })}
-              </Text>
-            )}
-
-            <Text style={[vtStyles.sectionLabel, { color: colors.textSecondary }]}>
-              {t("savings.vaultTransfer.pickGoal")}
-            </Text>
-
-            <ScrollView style={vtStyles.goalList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {goals.length === 0 ? (
-                <View style={vtStyles.noGoals}>
-                  <Ionicons name="flag-outline" size={32} color={colors.separator} />
-                  <Text style={[vtStyles.noGoalsText, { color: colors.textSecondary }]}>
-                    {t("savings.vaultTransfer.noGoals")}
-                  </Text>
-                </View>
-              ) : (
-                goals.map((g) => {
-                  const isSelected = selectedGoalId === g.id;
-                  const pct = calculateGoalProgress(g.currentAmount, g.targetAmount) * 100;
-                  const remaining = Math.max(0, g.targetAmount - g.currentAmount);
-                  return (
-                    <TouchableOpacity
-                      key={g.id}
-                      style={[
-                        vtStyles.goalRow,
-                        { backgroundColor: colors.inputBg },
-                        isSelected && { backgroundColor: colors.accent + "18", borderColor: colors.accent },
-                      ]}
-                      onPress={() => setSelectedGoalId(isSelected ? null : g.id)}
-                      activeOpacity={0.7}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: isSelected }}
-                    >
-                      <View style={[vtStyles.goalDotBox, { backgroundColor: g.colorHex + "22" }]}>
-                        <View style={[vtStyles.goalDot, { backgroundColor: g.colorHex }]} />
-                      </View>
-                      <View style={vtStyles.goalInfo}>
-                        <Text style={[vtStyles.goalName, { color: colors.text }]}>{g.name}</Text>
-                        <Text style={[vtStyles.goalSub, { color: colors.textSecondary }]}>
-                          {t("savings.remaining", { amount: formatMoney(remaining, currency) })}
-                        </Text>
-                        <View style={[vtStyles.progressTrack, { backgroundColor: colors.separator }]}>
-                          <View style={[vtStyles.progressFill, { width: `${pct}%`, backgroundColor: g.colorHex }]} />
-                        </View>
-                      </View>
-                      <View style={[
-                        vtStyles.check,
-                        { borderColor: colors.separator, backgroundColor: colors.card },
-                        isSelected && { backgroundColor: colors.accent, borderColor: colors.accent },
-                      ]}>
-                        {isSelected && <Ionicons name="checkmark" size={14} color={colors.onAccent} />}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </ScrollView>
-
-            <TouchableOpacity
-              style={[vtStyles.confirmBtn, { backgroundColor: colors.accent }, !canConfirm && { opacity: 0.4 }]}
-              onPress={handleConfirm}
-              disabled={!canConfirm}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !canConfirm }}
-            >
-              <Ionicons name="arrow-forward-circle" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
-              <Text style={[vtStyles.confirmText, { color: colors.onAccent }]}>
-                {selectedGoal && amount > 0
-                  ? t("savings.vaultTransfer.confirmTo", { name: selectedGoal.name })
-                  : t("savings.vaultTransfer.confirm")}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={handleClose} style={vtStyles.cancelBtn} accessibilityRole="button">
-              <Text style={[vtStyles.cancelText, { color: colors.textSecondary }]}>
-                {t("savings.vaultTransfer.cancel")}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
 // ─── Vault Card ───────────────────────────────────────────────────────────────
 function VaultCard({ amount, currency, onTransferPress }: { amount: number; currency: string; onTransferPress: () => void }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { t } = useTranslation();
 
   return (
-    <View style={[styles.vaultCard, { backgroundColor: colors.card, borderColor: colors.background, shadowColor: colors.shadow }]}>
-      <View style={styles.vaultLeft}>
-        <View style={[styles.vaultIconBox, { backgroundColor: colors.vaultBg }]}>
-          <Ionicons name="lock-closed" size={22} color={colors.vault} />
-        </View>
-        <View style={styles.vaultText}>
-          <Text style={[styles.vaultLabel, { color: colors.text }]}>{t("savings.vault")}</Text>
-          <Text style={[styles.vaultSub, { color: colors.textSecondary }]}>{t("savings.vaultSub")}</Text>
-        </View>
+    <View style={[styles.card, styles.vaultCard, { backgroundColor: colors.card }, elevation.raised(isDark)]}>
+      <View style={[styles.vaultTile, { backgroundColor: colors.vaultBg }]}>
+        <Icon name="vault" size={20} color={colors.vault} />
+      </View>
+      <View style={styles.flex}>
+        <Text style={[type.headline, { color: colors.text }]}>{t("savings.vault")}</Text>
+        <Text style={[type.footnote, { color: colors.textSecondary }]}>{t("savings.vaultSub")}</Text>
       </View>
       <View style={styles.vaultRight}>
-        <Text style={[styles.vaultAmount, { color: colors.vault }]}>{formatMoney(amount, currency)}</Text>
+        <Text style={[type.title3, money, { color: colors.vault }]}>{formatMoney(amount, currency)}</Text>
         {amount > 0 && (
-          <TouchableOpacity
-            style={[styles.transferBtn, { backgroundColor: colors.background }]}
+          <Pressable
+            style={[styles.smallButton, { backgroundColor: tint(colors.accent, "subtle") }]}
             onPress={onTransferPress}
-            activeOpacity={0.8}
             accessibilityRole="button"
           >
-            <Ionicons name="arrow-forward-circle-outline" size={14} color={colors.accent} />
-            <Text style={[styles.transferBtnText, { color: colors.text }]}>{t("savings.transfer")}</Text>
-          </TouchableOpacity>
+            <Text style={[type.subheadline, { color: colors.accent, fontWeight: "600" }]}>{t("savings.transfer")}</Text>
+          </Pressable>
         )}
       </View>
     </View>
@@ -265,11 +71,12 @@ interface GoalCardProps {
   onAddAmount: (amount: number) => void;
 }
 
-const DELETE_THRESHOLD = -80;
+const DELETE_THRESHOLD = -88;
 
 function GoalCard({ goal, currency, onPress, onDelete, onAddAmount }: GoalCardProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { t, i18n } = useTranslation();
+  const { spring } = useMotion();
   const [showInput, setShowInput] = useState(false);
   const amountField = useAmountField();
   const [translateX] = useState(() => new Animated.Value(0));
@@ -282,18 +89,22 @@ function GoalCard({ goal, currency, onPress, onDelete, onAddAmount }: GoalCardPr
       },
       onPanResponderRelease: (_, g) => {
         const open = g.dx < DELETE_THRESHOLD / 2;
-        Animated.spring(translateX, { toValue: open ? DELETE_THRESHOLD : 0, useNativeDriver: true }).start();
+        Animated.spring(translateX, { toValue: open ? DELETE_THRESHOLD : 0, damping: 20, stiffness: 200, useNativeDriver: true }).start();
       },
     })
   );
 
+  const color     = dataColor(goal.colorHex, isDark);
   const progress  = calculateGoalProgress(goal.currentAmount, goal.targetAmount);
   const remaining = Math.max(0, goal.targetAmount - goal.currentAmount);
   const achieved  = isAchieved(goal);
 
   const handleAdd = () => {
     const value = amountField.parse();
-    if (value === null) return;
+    if (value === null) {
+      haptics.error();
+      return;
+    }
     onAddAmount(value);
     amountField.reset();
     setShowInput(false);
@@ -302,28 +113,19 @@ function GoalCard({ goal, currency, onPress, onDelete, onAddAmount }: GoalCardPr
   return (
     <View style={styles.swipeWrapper}>
       <View style={[styles.deleteBackground, { backgroundColor: colors.destructive }]}>
-        <TouchableOpacity style={styles.deleteAction} onPress={onDelete} accessibilityRole="button">
-          <Ionicons name="trash" size={22} color={colors.onAccent} />
-          <Text style={[styles.deleteActionText, { color: colors.onAccent }]}>{t("savings.delete")}</Text>
-        </TouchableOpacity>
+        <Pressable style={styles.deleteAction} onPress={onDelete} accessibilityRole="button">
+          <Icon name="trash" size={20} color={colors.onAccent} />
+          <Text style={[type.caption, { color: colors.onAccent, fontWeight: "600" }]}>{t("savings.delete")}</Text>
+        </Pressable>
       </View>
 
       <Animated.View
-        style={[
-          styles.goalCard,
-          {
-            transform: [{ translateX }],
-            // Achieved goals get a tint that works in both themes (B-20).
-            backgroundColor: achieved ? colors.successBg : colors.card,
-            shadowColor: colors.shadow,
-          },
-        ]}
+        style={[styles.card, { backgroundColor: colors.card, transform: [{ translateX }] }]}
         {...panResponder.panHandlers}
       >
-        <TouchableOpacity
-          activeOpacity={0.85}
+        <Pressable
           onPress={() => {
-            Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+            spring(translateX, 0, "standard").start();
             onPress();
           }}
           accessibilityRole="button"
@@ -332,88 +134,82 @@ function GoalCard({ goal, currency, onPress, onDelete, onAddAmount }: GoalCardPr
           // Swipe-to-delete is not reachable with a screen reader; offer it as an action.
           accessibilityActions={[{ name: "delete", label: t("savings.delete") }]}
           onAccessibilityAction={(e) => e.nativeEvent.actionName === "delete" && onDelete()}
+          style={styles.goalBody}
         >
-          <View style={styles.goalRow}>
-            <View style={styles.goalTop}>
-              <View style={[styles.goalColorDot, { backgroundColor: goal.colorHex }]} />
-              <Text style={[styles.goalName, { color: colors.text }]} numberOfLines={1}>{goal.name}</Text>
-              {achieved && (
-                <View style={[styles.achievedBadge, { backgroundColor: colors.card }]}>
-                  <Ionicons name="checkmark-circle" size={13} color={colors.successText} />
-                  <Text style={[styles.achievedText, { color: colors.successText }]}>{t("savings.achieved")}</Text>
-                </View>
-              )}
-              <Text style={[styles.goalPct, { color: colors.text }]}>{Math.round(progress * 100)}%</Text>
-            </View>
-
-            <View style={[styles.progressTrack, { backgroundColor: colors.separator }]}>
-              <View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: goal.colorHex }]} />
-            </View>
-
-            <View style={styles.goalBottom}>
-              <Text style={[styles.goalCurrent, { color: colors.text }]}>{formatMoney(goal.currentAmount, currency)}</Text>
-              <Text style={[styles.goalRemaining, { color: colors.textSecondary }]}>
-                {remaining > 0 ? t("savings.remaining", { amount: formatMoney(remaining, currency) }) : t("savings.goalAchieved")}
-              </Text>
-              <Text style={[styles.goalTarget, { color: colors.textSecondary }]}>{formatMoney(goal.targetAmount, currency)}</Text>
-            </View>
-
-            {goal.deadline && (
-              <View style={styles.deadlineRow}>
-                <Ionicons name="calendar-outline" size={12} color={colors.textSecondary} />
-                <Text style={[styles.deadline, { color: colors.textSecondary }]}>
-                  {t("savings.deadlineOn", { date: formatDate(goal.deadline, i18n.language) })}
-                </Text>
+          <View style={styles.goalTop}>
+            <View style={[styles.goalDot, { backgroundColor: color }]} />
+            <Text style={[type.headline, styles.flex, { color: colors.text }]} numberOfLines={1}>{goal.name}</Text>
+            {achieved ? (
+              <View style={[styles.badge, { backgroundColor: colors.successBg }]}>
+                <Icon name="sealCheck" size={13} color={colors.successText} />
+                <Text style={[type.caption, { color: colors.successText, fontWeight: "600" }]}>{t("savings.achieved")}</Text>
               </View>
+            ) : (
+              <Text style={[type.subheadline, money, { color: colors.textSecondary }]}>{Math.round(progress * 100)}%</Text>
             )}
           </View>
-        </TouchableOpacity>
+
+          <ProgressBar progress={progress} color={color} />
+
+          <View style={styles.goalBottom}>
+            <Text style={[type.subheadline, money, { color: colors.text, fontWeight: "600" }]}>{formatMoney(goal.currentAmount, currency)}</Text>
+            <Text style={[type.footnote, money, { color: colors.textSecondary }]}>
+              {remaining > 0 ? t("savings.remaining", { amount: formatMoney(remaining, currency) }) : t("savings.goalAchieved")}
+            </Text>
+          </View>
+
+          {goal.deadline && (
+            <View style={styles.deadlineRow}>
+              <Icon name="calendar" size={12} color={colors.textSecondary} />
+              <Text style={[type.caption, { color: colors.textSecondary }]}>
+                {t("savings.deadlineOn", { date: formatDate(goal.deadline, i18n.language) })}
+              </Text>
+            </View>
+          )}
+        </Pressable>
 
         {!achieved && (
-          <View style={[styles.addSection, { borderTopColor: colors.separator }]}>
+          <View>
+            <Separator inset={0} />
             {showInput ? (
-              <>
+              <View style={styles.addRow}>
                 <View style={styles.inputRow}>
                   <TextInput
-                    style={[styles.addInput, { backgroundColor: colors.background, color: colors.text }]}
+                    style={[inputType(type.body), money, styles.addInput, { backgroundColor: colors.fill, color: colors.text }]}
                     value={amountField.text}
                     onChangeText={amountField.onChangeText}
                     placeholder={t("savings.enterAmount")}
-                    placeholderTextColor={colors.textTertiary}
+                    placeholderTextColor={colors.placeholder}
                     keyboardType="number-pad"
                     autoFocus
                     accessibilityLabel={t("savings.enterAmount")}
                   />
-                  <TouchableOpacity
-                    style={[styles.iconBtn, { backgroundColor: colors.accent }]}
+                  <Pressable
+                    style={[styles.iconButton, { backgroundColor: colors.accent }]}
                     onPress={handleAdd}
                     accessibilityRole="button"
                     accessibilityLabel={t("common.confirm")}
                   >
-                    <Ionicons name="checkmark" size={20} color={colors.onAccent} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.iconBtn, { backgroundColor: colors.background }]}
+                    <Icon name="check" size={18} color={colors.onAccent} />
+                  </Pressable>
+                  <Pressable
+                    style={[styles.iconButton, { backgroundColor: colors.fill }]}
                     onPress={() => { setShowInput(false); amountField.reset(); }}
                     accessibilityRole="button"
                     accessibilityLabel={t("common.cancel")}
                   >
-                    <Ionicons name="close" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
+                    <Icon name="close" size={18} color={colors.textSecondary} />
+                  </Pressable>
                 </View>
                 {amountField.errorText && (
-                  <Text style={[styles.fieldError, { color: colors.destructive }]}>{amountField.errorText}</Text>
+                  <Text style={[type.footnote, { color: colors.destructive }]}>{amountField.errorText}</Text>
                 )}
-              </>
+              </View>
             ) : (
-              <TouchableOpacity
-                style={[styles.addMoneyBtn, { backgroundColor: colors.background }]}
-                onPress={() => setShowInput(true)}
-                accessibilityRole="button"
-              >
-                <Ionicons name="add-circle-outline" size={16} color={colors.accent} />
-                <Text style={[styles.addMoneyText, { color: colors.text }]}>{t("savings.addMoney")}</Text>
-              </TouchableOpacity>
+              <PressableRow style={styles.addMoneyRow} onPress={() => setShowInput(true)} accessibilityRole="button">
+                <Icon name="plusCircle" size={18} color={colors.accent} />
+                <Text style={[type.body, { color: colors.accent }]}>{t("savings.addMoney")}</Text>
+              </PressableRow>
             )}
           </View>
         )}
@@ -426,20 +222,15 @@ function GoalCard({ goal, currency, onPress, onDelete, onAddAmount }: GoalCardPr
 export default function SavingsScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
-  const bottomSpace = useTabBarSpace();
+  const router = useRouter();
   const currency = t("common.currency");
 
-  const savingsGoals      = useAppStore((s) => s.savingsGoals);
-  const vaultAmount       = useAppStore((s) => s.vaultAmount);
-  const deleteGoal        = useAppStore((s) => s.deleteGoal);
-  const saveFromBalance   = useAppStore((s) => s.saveFromBalance);
-  const transferFromVault = useAppStore((s) => s.transferFromVault);
-
-  const { show: showToast, ToastView } = useMilestoneToast();
+  const savingsGoals    = useAppStore((s) => s.savingsGoals);
+  const vaultAmount     = useAppStore((s) => s.vaultAmount);
+  const deleteGoal      = useAppStore((s) => s.deleteGoal);
+  const saveFromBalance = useAppStore((s) => s.saveFromBalance);
 
   const [editor, setEditor] = useState<{ goal: SavingsGoal; isNew: boolean } | null>(null);
-  const [showVaultTransfer, setShowVaultTransfer] = useState(false);
 
   // Goals that already passed 50% / 100% get no repeat toast. Filled on first use.
   const notified = useRef<{ half: Set<string>; full: Set<string> } | null>(null);
@@ -456,20 +247,22 @@ export default function SavingsScreen() {
     if (ratio >= 1 && !notified.current.full.has(goal.id)) {
       notified.current.full.add(goal.id);
       notified.current.half.add(goal.id);
-      showToast(t("savings.milestone100"), "🎉");
+      showToast(t("savings.milestone100"), "sealCheck");
     } else if (ratio >= 0.5 && !notified.current.half.has(goal.id)) {
       notified.current.half.add(goal.id);
-      showToast(t("savings.milestone50"), "💪");
+      showToast(t("savings.milestone50"), "star", colors.warning);
     }
   };
 
   const handleAddAmount = (goal: SavingsGoal, amount: number) => {
     // Taken from the balance; not capped at the target, so nothing is dropped (D-5).
     saveFromBalance(amount, goal.id, "");
+    haptics.success();
     checkMilestones(goal, amount);
   };
 
   const confirmDelete = (goal: SavingsGoal, afterDelete?: () => void) => {
+    haptics.warning();
     const message =
       goal.currentAmount > 0
         ? t("savings.confirmDeleteGoal", { amount: formatMoney(goal.currentAmount, currency) })
@@ -487,16 +280,6 @@ export default function SavingsScreen() {
     ]);
   };
 
-  const handleVaultTransfer = (goalId: string, amount: number) => {
-    const goal = savingsGoals.find((g) => g.id === goalId);
-    transferFromVault(amount, goalId);
-    setShowVaultTransfer(false);
-    if (goal) {
-      showToast(t("savings.transferredTo", { name: goal.name }), "✅");
-      checkMilestones(goal, Math.min(amount, vaultAmount));
-    }
-  };
-
   const openNewGoal = () =>
     // The id is created here, in the handler, never during render (KB-1).
     setEditor({
@@ -505,37 +288,47 @@ export default function SavingsScreen() {
     });
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      {ToastView}
-
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text }]} accessibilityRole="header">
-          {t("savings.title")}
-        </Text>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.card, shadowColor: colors.shadow }]}
-          onPress={openNewGoal}
-          accessibilityRole="button"
-        >
-          <Ionicons name="add" size={20} color={colors.accent} />
-          <Text style={[styles.addButtonText, { color: colors.accent }]}>{t("savings.newGoal")}</Text>
-        </TouchableOpacity>
-      </View>
-
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable
+              onPress={openNewGoal}
+              hitSlop={8}
+              style={styles.headerButton}
+              accessibilityRole="button"
+              accessibilityLabel={t("savings.newGoal")}
+            >
+              <Icon name="plus" size={22} color={colors.accent} />
+            </Pressable>
+          ),
+        }}
+      />
       <FlatList
         data={savingsGoals}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.content, { paddingBottom: bottomSpace }]}
+        contentInsetAdjustmentBehavior="automatic"
+        style={{ backgroundColor: colors.background }}
+        contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
         ListHeaderComponent={
-          <VaultCard amount={vaultAmount} currency={currency} onTransferPress={() => setShowVaultTransfer(true)} />
+          <View style={styles.listHeader}>
+            <VaultCard amount={vaultAmount} currency={currency} onTransferPress={() => router.push("/savings/transfer")} />
+            {savingsGoals.length > 0 && (
+              <Text style={[type.sectionHeader, styles.sectionHeader, { color: colors.textSecondary }]} accessibilityRole="header">
+                {t("savings.goals")}
+              </Text>
+            )}
+          </View>
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="flag-outline" size={56} color={colors.separator} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("savings.noGoals")}</Text>
-            <Text style={[styles.emptySub, { color: colors.textSecondary }]}>{t("savings.noGoalsSub")}</Text>
+            <Icon name="flag" size={48} color={colors.placeholder} />
+            <Text style={[type.title3, { color: colors.text }]}>{t("savings.noGoals")}</Text>
+            <Text style={[type.footnote, styles.emptySub, { color: colors.textSecondary }]}>{t("savings.noGoalsSub")}</Text>
+            <Button title={t("savings.newGoal")} variant="tinted" icon="plus" onPress={openNewGoal} style={styles.emptyButton} />
           </View>
         }
         renderItem={({ item }) => (
@@ -547,7 +340,7 @@ export default function SavingsScreen() {
             onAddAmount={(amount) => handleAddAmount(item, amount)}
           />
         )}
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: space[3] }} />}
         showsVerticalScrollIndicator={false}
       />
 
@@ -559,16 +352,7 @@ export default function SavingsScreen() {
           onDelete={editor.isNew ? undefined : () => confirmDelete(editor.goal, () => setEditor(null))}
         />
       )}
-
-      <VaultTransferModal
-        visible={showVaultTransfer}
-        vaultAmount={vaultAmount}
-        currency={currency}
-        goals={savingsGoals}
-        onTransfer={handleVaultTransfer}
-        onClose={() => setShowVaultTransfer(false)}
-      />
-    </View>
+    </>
   );
 }
 
@@ -582,7 +366,7 @@ interface GoalEditorProps {
 }
 
 function GoalEditorModal({ goal, isNew, onClose, onDelete }: GoalEditorProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const currency = t("common.currency");
@@ -605,7 +389,10 @@ function GoalEditorModal({ goal, isNew, onClose, onDelete }: GoalEditorProps) {
     const currentAmount = isNew ? (alreadySaved.text.trim() ? alreadySaved.parse() : 0) : goal.currentAmount;
     const hasName = g.name.trim().length > 0;
     setNameError(!hasName);
-    if (targetAmount === null || currentAmount === null || !hasName) return;
+    if (targetAmount === null || currentAmount === null || !hasName) {
+      haptics.error();
+      return;
+    }
     const toSave: SavingsGoal = {
       ...g,
       name: g.name.trim(),
@@ -615,8 +402,11 @@ function GoalEditorModal({ goal, isNew, onClose, onDelete }: GoalEditorProps) {
     };
     if (isNew) addGoal(toSave);
     else updateGoal(toSave);
+    haptics.success();
     onClose();
   };
+
+  const detailsError = nameError ? t("savings.editor.nameRequired") : target.errorText ?? alreadySaved.errorText;
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -630,136 +420,111 @@ function GoalEditorModal({ goal, isNew, onClose, onDelete }: GoalEditorProps) {
         />
 
         <ScrollView
-          style={styles.modalScroll}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+          contentContainerStyle={[styles.editorContent, { paddingBottom: insets.bottom + space[10] }]}
         >
-          {/* Details */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
-              {t("savings.editor.sections.details")}
-            </Text>
-            <View style={[styles.editorCard, { backgroundColor: colors.card }]}>
+          <Section
+            title={t("savings.editor.sections.details")}
+            footer={detailsError ?? (isNew ? t("savings.editor.alreadySavedHint") : null)}
+            footerColor={detailsError ? colors.destructive : undefined}
+          >
+            <TextInput
+              style={[inputType(type.body), styles.input, { color: colors.text }]}
+              placeholder={t("savings.editor.name")}
+              placeholderTextColor={colors.placeholder}
+              value={g.name}
+              onChangeText={(v) => { setG({ ...g, name: v }); setNameError(false); }}
+              returnKeyType="next"
+              accessibilityLabel={t("savings.editor.nameLabel")}
+            />
+            <Separator />
+            <View style={styles.editRow}>
+              <Text style={[type.body, { color: colors.text }]}>{t("savings.editor.target")}</Text>
               <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder={t("savings.editor.name")}
-                placeholderTextColor={colors.textTertiary}
-                value={g.name}
-                onChangeText={(v) => { setG({ ...g, name: v }); setNameError(false); }}
-                returnKeyType="next"
-                accessibilityLabel={t("savings.editor.nameLabel")}
+                style={[inputType(type.body), money, styles.amountInput, { color: colors.text }]}
+                value={target.text}
+                placeholder="0"
+                placeholderTextColor={colors.placeholder}
+                onChangeText={target.onChangeText}
+                keyboardType="number-pad"
+                accessibilityLabel={t("savings.editor.target")}
               />
-              {nameError && (
-                <Text style={[styles.fieldError, { color: colors.destructive }]}>{t("savings.editor.nameRequired")}</Text>
-              )}
-              <View style={[styles.inputSep, { backgroundColor: colors.separator }]} />
-              <View style={styles.editRow}>
-                <Text style={[styles.editLabel, { color: colors.text }]}>{t("savings.editor.target")}</Text>
-                <TextInput
-                  style={[styles.input, { flex: 1, textAlign: "right", color: colors.text }]}
-                  value={target.text}
-                  placeholder="0"
-                  placeholderTextColor={colors.textTertiary}
-                  onChangeText={target.onChangeText}
-                  keyboardType="number-pad"
-                  accessibilityLabel={t("savings.editor.target")}
-                />
-                <Text style={[styles.currencySuffix, { color: colors.textSecondary }]}>{currency}</Text>
-              </View>
-              {target.errorText && (
-                <Text style={[styles.fieldError, { color: colors.destructive }]}>{target.errorText}</Text>
-              )}
-              {isNew && (
-                <>
-                  <View style={[styles.inputSep, { backgroundColor: colors.separator }]} />
-                  <View style={styles.editRow}>
-                    <Text style={[styles.editLabel, { color: colors.text }]}>{t("savings.editor.alreadySaved")}</Text>
-                    <TextInput
-                      style={[styles.input, { flex: 1, textAlign: "right", color: colors.text }]}
-                      value={alreadySaved.text}
-                      placeholder="0"
-                      placeholderTextColor={colors.textTertiary}
-                      onChangeText={alreadySaved.onChangeText}
-                      keyboardType="number-pad"
-                      accessibilityLabel={t("savings.editor.alreadySaved")}
-                      accessibilityHint={t("savings.editor.alreadySavedHint")}
-                    />
-                    <Text style={[styles.currencySuffix, { color: colors.textSecondary }]}>{currency}</Text>
-                  </View>
-                  <Text style={[styles.fieldHint, { color: alreadySaved.errorText ? colors.destructive : colors.textSecondary }]}>
-                    {alreadySaved.errorText ?? t("savings.editor.alreadySavedHint")}
-                  </Text>
-                </>
-              )}
+              <Text style={[type.body, { color: colors.textSecondary }]}>{currency}</Text>
             </View>
-          </View>
+            {isNew && (
+              <>
+                <Separator />
+                <View style={styles.editRow}>
+                  <Text style={[type.body, { color: colors.text }]}>{t("savings.editor.alreadySaved")}</Text>
+                  <TextInput
+                    style={[inputType(type.body), money, styles.amountInput, { color: colors.text }]}
+                    value={alreadySaved.text}
+                    placeholder="0"
+                    placeholderTextColor={colors.placeholder}
+                    onChangeText={alreadySaved.onChangeText}
+                    keyboardType="number-pad"
+                    accessibilityLabel={t("savings.editor.alreadySaved")}
+                    accessibilityHint={t("savings.editor.alreadySavedHint")}
+                  />
+                  <Text style={[type.body, { color: colors.textSecondary }]}>{currency}</Text>
+                </View>
+              </>
+            )}
+          </Section>
 
-          {/* Color */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
-              {t("savings.editor.sections.color")}
-            </Text>
-            <View style={[styles.editorCard, styles.colorRow, { backgroundColor: colors.card }]} accessibilityRole="radiogroup">
+          <Section title={t("savings.editor.sections.color")}>
+            <View style={styles.grid} accessibilityRole="radiogroup">
               {COLOR_PALETTE.map((hex, i) => {
-                const selected = g.colorHex === hex;
+                const selected = g.colorHex.toUpperCase() === hex.toUpperCase();
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={hex}
-                    style={[styles.colorDot, { backgroundColor: hex }, selected && { borderColor: colors.text, borderWidth: 3 }]}
-                    onPress={() => setG({ ...g, colorHex: hex })}
+                    style={[styles.swatch, { backgroundColor: dataColor(hex, isDark) }, selected && { borderColor: colors.text, borderWidth: 3 }]}
+                    onPress={() => { haptics.selection(); setG({ ...g, colorHex: hex }); }}
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
                     accessibilityLabel={t("a11y.colorOption", { n: i + 1 })}
                   >
-                    {selected && <Ionicons name="checkmark" size={18} color="#ffffff" />}
-                  </TouchableOpacity>
+                    {selected && <Icon name="check" size={18} color="#FFFFFF" />}
+                  </Pressable>
                 );
               })}
             </View>
-          </View>
+          </Section>
 
-          {/* Deadline */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
-              {t("savings.editor.sections.deadline")}
-            </Text>
-            <View style={[styles.editorCard, { backgroundColor: colors.card }]}>
-              <View style={styles.switchRow}>
-                <Text style={[styles.switchLabel, { color: colors.text }]}>{t("savings.editor.setDeadline")}</Text>
-                <View style={styles.switchSlot}>
-                  <Switch
-                    value={useDeadline}
-                    onValueChange={setUseDeadline}
-                    trackColor={{ true: colors.accent }}
-                    accessibilityLabel={t("savings.editor.setDeadline")}
-                  />
-                </View>
+          <Section title={t("savings.editor.sections.deadline")}>
+            <View style={styles.switchRow}>
+              <Text style={[type.body, styles.flex, { color: colors.text }]}>{t("savings.editor.setDeadline")}</Text>
+              {/* iOS 26 draws the switch larger than its reserved frame; centre it in a fixed box. */}
+              <View style={styles.switchSlot}>
+                <Switch
+                  value={useDeadline}
+                  onValueChange={setUseDeadline}
+                  trackColor={{ true: colors.success }}
+                  accessibilityLabel={t("savings.editor.setDeadline")}
+                />
               </View>
-              {useDeadline && (
-                <>
-                  <View style={[styles.inputSep, { backgroundColor: colors.separator }]} />
-                  <DateField
-                    label={t("savings.editor.date")}
-                    value={deadline}
-                    minimumDate={today}
-                    onChange={(d) => setG({ ...g, deadline: d.toISOString() })}
-                  />
-                </>
-              )}
             </View>
-          </View>
+            {useDeadline && (
+              <>
+                <Separator />
+                <DateField
+                  label={t("savings.editor.date")}
+                  value={deadline}
+                  minimumDate={today}
+                  onChange={(d) => setG({ ...g, deadline: d.toISOString() })}
+                />
+              </>
+            )}
+          </Section>
 
-          {/* Delete */}
           {!isNew && onDelete && (
-            <TouchableOpacity
-              style={[styles.deleteButton, { backgroundColor: colors.card }]}
-              onPress={onDelete}
-              accessibilityRole="button"
-            >
-              <Ionicons name="trash" size={18} color={colors.destructive} />
-              <Text style={[styles.deleteText, { color: colors.destructive }]}>{t("savings.editor.delete")}</Text>
-            </TouchableOpacity>
+            <Section>
+              <PressableRow style={styles.centerRow} onPress={onDelete} accessibilityRole="button">
+                <Text style={[type.body, { color: colors.destructive }]}>{t("savings.editor.delete")}</Text>
+              </PressableRow>
+            </Section>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -767,105 +532,42 @@ function GoalEditorModal({ goal, isNew, onClose, onDelete }: GoalEditorProps) {
   );
 }
 
-// ─── Vault Transfer Sheet Styles ──────────────────────────────────────────────
-const vtStyles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingTop: 12, maxHeight: "85%" },
-  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 20 },
-  title: { fontSize: 20, fontWeight: "700", marginBottom: 4 },
-  subtitle: { fontSize: 14, marginBottom: 20 },
-  amountRow: { flexDirection: "row", alignItems: "center", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 4, marginBottom: 8, gap: 8 },
-  amountLabel: { fontSize: 15 },
-  amountInput: { flex: 1, fontSize: 22, fontWeight: "700", paddingVertical: 10 },
-  maxBtn: { borderRadius: 8, paddingHorizontal: 12, minHeight: 36, justifyContent: "center" },
-  maxBtnText: { fontSize: 13, fontWeight: "600" },
-  error: { fontSize: 13, marginBottom: 8 },
-  sectionLabel: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5, marginTop: 12, marginBottom: 8 },
-  goalList: { maxHeight: 260, marginBottom: 16 },
-  noGoals: { alignItems: "center", paddingVertical: 32, gap: 8 },
-  noGoalsText: { fontSize: 14, textAlign: "center" },
-  goalRow: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 14, marginBottom: 8, borderWidth: 1.5, borderColor: "transparent" },
-  goalDotBox: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  goalDot: { width: 14, height: 14, borderRadius: 7 },
-  goalInfo: { flex: 1, marginRight: 8 },
-  goalName: { fontSize: 15, fontWeight: "600", marginBottom: 2 },
-  goalSub: { fontSize: 12, marginBottom: 5 },
-  progressTrack: { height: 4, borderRadius: 2, overflow: "hidden" },
-  progressFill: { height: 4, borderRadius: 2 },
-  check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  confirmBtn: { borderRadius: 14, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 8, minHeight: MIN_TOUCH },
-  confirmText: { fontSize: 16, fontWeight: "600" },
-  cancelBtn: { alignItems: "center", justifyContent: "center", minHeight: MIN_TOUCH },
-  cancelText: { fontSize: 15 },
-});
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4, gap: 12 },
-  headerTitle: { fontSize: 34, fontWeight: "700", letterSpacing: 0.3, flexShrink: 1 },
-  addButton: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, minHeight: MIN_TOUCH, borderRadius: 22, shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  addButtonText: { fontSize: 15, fontWeight: "600" },
-  content: { paddingHorizontal: 16, paddingTop: 16, gap: 10 },
-  vaultCard: { borderRadius: 20, padding: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 3, borderWidth: 1.5, gap: 12 },
-  vaultLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  vaultText: { flex: 1 },
-  vaultIconBox: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  vaultLabel: { fontSize: 16, fontWeight: "700" },
-  vaultSub: { fontSize: 12, marginTop: 2 },
-  vaultRight: { alignItems: "flex-end", gap: 6 },
-  vaultAmount: { fontSize: 19, fontWeight: "800" },
-  transferBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, minHeight: 36, borderRadius: 10 },
-  transferBtnText: { fontSize: 14, fontWeight: "600" },
-  swipeWrapper: { borderRadius: 16, overflow: "hidden" },
-  deleteBackground: { position: "absolute", right: 0, top: 0, bottom: 0, width: 80, borderRadius: 16, justifyContent: "center", alignItems: "center" },
-  deleteAction: { alignItems: "center", justifyContent: "center", gap: 4, minWidth: MIN_TOUCH, minHeight: MIN_TOUCH },
-  deleteActionText: { fontSize: 12, fontWeight: "500" },
-  goalCard: { borderRadius: 16, shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
-  goalRow: { padding: 16, gap: 10 },
-  goalTop: { flexDirection: "row", alignItems: "center", gap: 8 },
-  goalColorDot: { width: 10, height: 10, borderRadius: 5 },
-  goalName: { flex: 1, fontSize: 17, fontWeight: "600" },
-  goalPct: { fontSize: 15, fontWeight: "700" },
-  achievedBadge: { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  achievedText: { fontSize: 12, fontWeight: "600" },
-  progressTrack: { height: 8, borderRadius: 4, overflow: "hidden" },
-  progressFill: { height: 8, borderRadius: 4 },
-  goalBottom: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
-  goalCurrent: { fontSize: 14, fontWeight: "600" },
-  goalRemaining: { fontSize: 12, flexShrink: 1, textAlign: "center" },
-  goalTarget: { fontSize: 13 },
-  deadlineRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: -2 },
-  deadline: { fontSize: 12 },
-  addSection: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingVertical: 10 },
-  addMoneyBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 10, paddingHorizontal: 14, minHeight: MIN_TOUCH, alignSelf: "flex-start" },
-  addMoneyText: { fontSize: 14, fontWeight: "500" },
-  inputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  addInput: { flex: 1, borderRadius: 10, paddingHorizontal: 12, minHeight: MIN_TOUCH, fontSize: 15 },
-  iconBtn: { borderRadius: 10, width: MIN_TOUCH, height: MIN_TOUCH, alignItems: "center", justifyContent: "center" },
-  fieldError: { fontSize: 13, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 10 },
-  fieldHint: { fontSize: 12, paddingHorizontal: 16, paddingBottom: 12, marginTop: -4 },
-  toast: { position: "absolute", alignSelf: "center", zIndex: 9999, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 13, borderRadius: 30, shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 4 }, elevation: 8, borderWidth: StyleSheet.hairlineWidth },
-  toastIcon: { fontSize: 18 },
-  toastText: { fontSize: 15, fontWeight: "600" },
-  empty: { alignItems: "center", paddingVertical: 40, gap: 12 },
-  emptyTitle: { fontSize: 20, fontWeight: "600" },
-  emptySub: { fontSize: 14, textAlign: "center", paddingHorizontal: 32 },
-  modalScroll: { flex: 1 },
-  section: { margin: 16, marginBottom: 0 },
-  sectionHeader: { fontSize: 12, fontWeight: "600", marginBottom: 6, paddingHorizontal: 4, letterSpacing: 0.5 },
-  editorCard: { borderRadius: 12, overflow: "hidden" },
-  input: { paddingHorizontal: 16, paddingVertical: 14, fontSize: 16 },
-  inputSep: { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
-  editRow: { flexDirection: "row", alignItems: "center" },
-  editLabel: { paddingLeft: 16, fontSize: 16, maxWidth: 140 },
-  currencySuffix: { paddingRight: 16, fontSize: 15 },
-  colorRow: { flexDirection: "row", flexWrap: "wrap", padding: 12, gap: 10 },
-  colorDot: { width: MIN_TOUCH, height: MIN_TOUCH, borderRadius: MIN_TOUCH / 2, alignItems: "center", justifyContent: "center" },
-  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, minHeight: MIN_TOUCH + 8 },
-  switchLabel: { fontSize: 16, flex: 1 },
-  // iOS 26 draws the switch larger than its reserved frame; centre it in a fixed box.
-  switchSlot: { width: 64, height: 40, alignItems: "center", justifyContent: "center" },
-  deleteButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, margin: 16, padding: 16, borderRadius: 12, minHeight: MIN_TOUCH },
-  deleteText: { fontSize: 16, fontWeight: "500" },
+  flex:             { flex: 1 },
+  content:          { paddingHorizontal: GUTTER, paddingTop: space[2], paddingBottom: space[8], flexGrow: 1 },
+  headerButton:     { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  listHeader:       { gap: SECTION_GAP, marginBottom: space[2] },
+  sectionHeader:    { paddingHorizontal: space[4], marginBottom: -space[4] },
+  card:             { ...corners(radius.lg) },
+  vaultCard:        { flexDirection: "row", alignItems: "center", gap: space[3], padding: space[4] },
+  vaultTile:        { width: 40, height: 40, alignItems: "center", justifyContent: "center", ...corners(radius.md) },
+  vaultRight:       { alignItems: "flex-end", gap: space[2] },
+  smallButton:      { paddingHorizontal: space[3], minHeight: 32, justifyContent: "center", ...corners(radius.pill) },
+  swipeWrapper:     { ...corners(radius.lg), overflow: "hidden" },
+  deleteBackground: { position: "absolute", right: 0, top: 0, bottom: 0, width: 88, alignItems: "center", justifyContent: "center", ...corners(radius.lg) },
+  deleteAction:     { alignItems: "center", justifyContent: "center", gap: space[1], minWidth: ROW_MIN, minHeight: ROW_MIN },
+  goalBody:         { padding: space[4], gap: space[3] },
+  goalTop:          { flexDirection: "row", alignItems: "center", gap: space[2] },
+  goalDot:          { width: 10, height: 10, borderRadius: 5 },
+  badge:            { flexDirection: "row", alignItems: "center", gap: space[1], paddingHorizontal: space[2], paddingVertical: 3, ...corners(radius.pill) },
+  goalBottom:       { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: space[2] },
+  deadlineRow:      { flexDirection: "row", alignItems: "center", gap: space[1], marginTop: -space[1] },
+  addMoneyRow:      { flexDirection: "row", alignItems: "center", gap: space[2], paddingHorizontal: space[4], minHeight: ROW_MIN + 4 },
+  addRow:           { padding: space[3], gap: space[2] },
+  inputRow:         { flexDirection: "row", alignItems: "center", gap: space[2] },
+  addInput:         { flex: 1, paddingHorizontal: space[3], minHeight: ROW_MIN, borderRadius: radius.sm },
+  iconButton:       { width: ROW_MIN, height: ROW_MIN, alignItems: "center", justifyContent: "center", ...corners(radius.sm) },
+  empty:            { alignItems: "center", paddingVertical: space[10], gap: space[3] },
+  emptySub:         { textAlign: "center", paddingHorizontal: space[8] },
+  emptyButton:      { marginTop: space[2], alignSelf: "center" },
+  editorContent:    { paddingHorizontal: GUTTER, paddingTop: space[4], gap: SECTION_GAP },
+  input:            { paddingHorizontal: space[4], paddingVertical: space[3], minHeight: ROW_MIN },
+  editRow:          { flexDirection: "row", alignItems: "center", gap: space[2], paddingHorizontal: space[4], minHeight: ROW_MIN + 4 },
+  amountInput:      { flex: 1, textAlign: "right", paddingVertical: space[3] },
+  grid:             { flexDirection: "row", flexWrap: "wrap", padding: space[3], gap: space[3] },
+  swatch:           { width: ROW_MIN, height: ROW_MIN, borderRadius: ROW_MIN / 2, alignItems: "center", justifyContent: "center" },
+  switchRow:        { flexDirection: "row", alignItems: "center", gap: space[3], paddingLeft: space[4], paddingRight: space[3], paddingVertical: space[1] + 2, minHeight: ROW_MIN + 8 },
+  switchSlot:       { width: 64, height: 40, alignItems: "center", justifyContent: "center" },
+  centerRow:        { alignItems: "center", justifyContent: "center", minHeight: ROW_MIN + 4 },
 });

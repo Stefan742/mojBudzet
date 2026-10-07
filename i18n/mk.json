@@ -118,7 +118,7 @@
     "addMoney": "Додај пари",
     "enterAmount": "Износ од салдото",
     "achieved": "Достигнато",
-    "goalAchieved": "🎉 Цел достигната",
+    "goalAchieved": "Целта е достигната",
     "milestone50": "На пола пат си! Само напред!",
     "milestone100": "Ја достигна целта!",
     "delete": "Избриши",
@@ -157,7 +157,8 @@
     "confirmDeleteGoal": "Заштедените {{amount}} ќе се префрлат во сефот.",
     "remaining": "Уште {{amount}}",
     "transferredTo": "Префрлено во „{{name}}“",
-    "deadlineOn": "Рок: {{date}}"
+    "deadlineOn": "Рок: {{date}}",
+    "goals": "ЦЕЛИ"
   },
   "settings": {
     "title": "Поставки",

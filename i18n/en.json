@@ -118,7 +118,7 @@
     "addMoney": "Add money",
     "enterAmount": "Amount from your balance",
     "achieved": "Achieved",
-    "goalAchieved": "🎉 Goal reached",
+    "goalAchieved": "Goal reached",
     "milestone50": "Halfway there! Keep going!",
     "milestone100": "You reached your goal!",
     "delete": "Delete",
@@ -157,7 +157,8 @@
     "confirmDeleteGoal": "The {{amount}} saved will move to the vault.",
     "remaining": "{{amount}} to go",
     "transferredTo": "Moved to “{{name}}”",
-    "deadlineOn": "Due {{date}}"
+    "deadlineOn": "Due {{date}}",
+    "goals": "GOALS"
   },
   "settings": {
     "title": "Settings",
