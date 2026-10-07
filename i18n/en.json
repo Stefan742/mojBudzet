@@ -17,7 +17,8 @@
     "uncategorized": "Uncategorized",
     "income": "Income",
     "expenses": "Expenses",
-    "saved": "Saved"
+    "saved": "Saved",
+    "byCategory": "BY CATEGORY"
   },
   "history": {
     "title": "History",
@@ -226,7 +227,9 @@
     "confirm": "Confirm",
     "vault": "Vault",
     "vaultDesc": "Save without a specific goal",
-    "carryOverHint": "The money stays in your balance."
+    "carryOverHint": "The money stays in your balance.",
+    "toastCarried": "Kept in your balance",
+    "toastSaved": "Saved to “{{name}}”"
   },
   "onboarding": {
     "title": "Welcome!",

@@ -2,16 +2,15 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   TextInput,
   StyleSheet,
   Modal,
   ScrollView,
   Alert,
   KeyboardAvoidingView,
+  Pressable,
   Share,
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -23,19 +22,29 @@ import { useTheme } from "../hooks/useTheme";
 import { Category, categoryLabel, incomeForMonth, monthKey } from "../models";
 import { MAX_AMOUNT_MKD, formatWholeDenars, validateAmount } from "../utils/money";
 import { dateLocale, monthStart } from "../utils/dates";
+import { haptics } from "../utils/haptics";
 import { ModalHeader } from "@/components/ModalHeader";
+import { Icon, type IconName } from "@/components/Icon";
 import { CATEGORY_ICONS, CategoryIcon, DEFAULT_CATEGORY_ICON, categoryIconName } from "@/components/CategoryIcon";
-import { MIN_TOUCH, useTabBarSpace } from "@/constants/layout";
-import { COLOR_PALETTE } from "@/constants/palette";
+import { PressableRow } from "@/components/ui/Pressables";
+import { Section, Separator } from "@/components/ui/Section";
+import { COLOR_PALETTE, dataColor } from "@/constants/palette";
 import { APP_VERSION } from "@/constants/app";
+import { GUTTER, ROW_MIN, SECTION_GAP, corners, inputType, money, radius, space, tint, type } from "@/constants/design";
 
+/** Icon tile in front of a settings row, like iOS Settings. */
+function RowTile({ icon, color }: { icon: IconName; color: string }) {
+  return (
+    <View style={[styles.tile, { backgroundColor: color }]}>
+      <Icon name={icon} size={16} color="#FFFFFF" />
+    </View>
+  );
+}
 
 export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
-  const { colors }  = useTheme();
-  const insets      = useSafeAreaInsets();
-  const bottomSpace = useTabBarSpace();
-  const router      = useRouter();
+  const { colors, isDark } = useTheme();
+  const router = useRouter();
 
   const categories        = useAppStore((s) => s.categories);
   const initialBalance    = useAppStore((s) => s.initialBalance);
@@ -74,7 +83,8 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleDeleteAll = () =>
+  const handleDeleteAll = () => {
+    haptics.warning();
     Alert.alert(t("settings.deleteAllTitle"), t("settings.deleteAllBody"), [
       { text: t("common.cancel"), style: "cancel" },
       {
@@ -87,216 +97,173 @@ export default function SettingsScreen() {
         },
       },
     ]);
+  };
 
-  const card = [styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }];
-  const sep  = <View style={[styles.sep, { backgroundColor: colors.separator }]} />;
-  const sectionHeader = (label: string) => (
-    <Text style={[styles.sectionHeader, { color: colors.textSecondary }]} accessibilityRole="header">
-      {label}
-    </Text>
-  );
-
-  const choiceRow = (opts: {
-    key: string;
-    label: string;
-    selected: boolean;
-    onPress: () => void;
-    icon?: React.ComponentProps<typeof Ionicons>["name"];
-    badge?: string;
-  }) => (
-    <TouchableOpacity
+  const choiceRow = (opts: { key: string; label: string; selected: boolean; onPress: () => void; icon: IconName; tileColor: string }) => (
+    <PressableRow
       key={opts.key}
       style={styles.row}
-      onPress={opts.onPress}
-      activeOpacity={0.7}
+      onPress={() => {
+        if (!opts.selected) haptics.selection();
+        opts.onPress();
+      }}
       accessibilityRole="radio"
       accessibilityState={{ selected: opts.selected }}
     >
-      <View style={[styles.themeIcon, opts.selected && { backgroundColor: `${colors.accent}18` }]}>
-        {opts.icon ? (
-          <Ionicons name={opts.icon} size={18} color={opts.selected ? colors.accent : colors.textSecondary} />
-        ) : (
-          <Text style={{ color: opts.selected ? colors.accent : colors.text }}>{opts.badge}</Text>
-        )}
-      </View>
-      <Text style={[styles.rowLabel, { color: opts.selected ? colors.accent : colors.text }, opts.selected && styles.bold]}>
-        {opts.label}
-      </Text>
-      {opts.selected && <Ionicons name="checkmark" size={20} color={colors.accent} />}
-    </TouchableOpacity>
+      <RowTile icon={opts.icon} color={opts.tileColor} />
+      <Text style={[type.body, styles.rowLabel, { color: colors.text }]}>{opts.label}</Text>
+      {opts.selected && <Icon name="check" size={18} color={colors.accent} />}
+    </PressableRow>
   );
 
-  const themes = [
-    { value: "light",  label: t("settings.light"),  icon: "sunny-outline"          },
-    { value: "dark",   label: t("settings.dark"),   icon: "moon-outline"           },
-    { value: "system", label: t("settings.system"), icon: "phone-portrait-outline" },
-  ] as const;
+  const themes: { value: "light" | "dark" | "system"; label: string; icon: IconName; tile: string }[] = [
+    { value: "light",  label: t("settings.light"),  icon: "sun",   tile: "#FF9500" },
+    { value: "dark",   label: t("settings.dark"),   icon: "moon",  tile: "#5856D6" },
+    { value: "system", label: t("settings.system"), icon: "phone", tile: "#8E8E93" },
+  ];
 
-  const languages: { value: string | null; label: string; badge?: string; icon?: "phone-portrait-outline" }[] = [
-    { value: null, label: t("settings.deviceLanguage"), icon: "phone-portrait-outline" },
-    { value: "mk", label: t("settings.macedonian"), badge: "mk" },
-    { value: "en", label: t("settings.english"), badge: "en" },
+  const languages: { value: string | null; label: string }[] = [
+    { value: null, label: t("settings.deviceLanguage") },
+    { value: "mk", label: t("settings.macedonian") },
+    { value: "en", label: t("settings.english") },
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: bottomSpace }]}
+        contentInsetAdjustmentBehavior="automatic"
+        style={{ backgroundColor: colors.background }}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
       >
-        <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: colors.text }]} accessibilityRole="header">
-            {t("settings.title")}
-          </Text>
-        </View>
-
-        {/* General */}
-        <View style={styles.section}>
-          {sectionHeader(t("settings.general"))}
-          <View style={card}>
-            <View style={styles.row}>
-              <Text style={[styles.rowLabel, { color: colors.text }]}>{t("settings.currency")}</Text>
-              <Text style={[styles.rowValue, { color: colors.textSecondary }]}>{t("common.currency")}</Text>
-            </View>
-            {sep}
-            <AmountRow
-              label={t("settings.startBalance")}
-              value={initialBalance}
-              allowZero
-              hint={t("settings.startBalanceHint")}
-              onSave={setInitialBalance}
-            />
-            {sep}
-            <AmountRow
-              label={t("settings.monthlyIncome")}
-              value={monthlyIncome}
-              placeholder={t("settings.notSet")}
-              hint={t("settings.monthlyIncomeHint", { month: monthLabel })}
-              onSave={setMonthlyIncome}
-            />
+        <Section title={t("settings.general")}>
+          <View style={styles.row}>
+            <Text style={[type.body, styles.rowLabel, { color: colors.text }]}>{t("settings.currency")}</Text>
+            <Text style={[type.body, { color: colors.textSecondary }]}>{t("common.currency")}</Text>
           </View>
-        </View>
+          <Separator />
+          <AmountRow
+            label={t("settings.startBalance")}
+            value={initialBalance}
+            allowZero
+            hint={t("settings.startBalanceHint")}
+            onSave={setInitialBalance}
+          />
+          <Separator />
+          <AmountRow
+            label={t("settings.monthlyIncome")}
+            value={monthlyIncome}
+            placeholder={t("settings.notSet")}
+            hint={t("settings.monthlyIncomeHint", { month: monthLabel })}
+            onSave={setMonthlyIncome}
+          />
+        </Section>
 
-        {/* Appearance */}
-        <View style={styles.section}>
-          {sectionHeader(t("settings.appearance"))}
-          <View style={card} accessibilityRole="radiogroup">
+        <Section title={t("settings.appearance")}>
+          <View accessibilityRole="radiogroup">
             {themes.map((opt, i) => (
               <React.Fragment key={opt.value}>
                 {choiceRow({
                   key: opt.value,
                   label: opt.label,
                   icon: opt.icon,
+                  tileColor: opt.tile,
                   selected: storedTheme === opt.value,
                   onPress: () => setTheme(opt.value),
                 })}
-                {i < themes.length - 1 && sep}
+                {i < themes.length - 1 && <Separator inset={space[4] + 29 + space[3]} />}
               </React.Fragment>
             ))}
           </View>
-        </View>
+        </Section>
 
-        {/* Language: "device" follows the phone's language (B-3) */}
-        <View style={styles.section}>
-          {sectionHeader(t("settings.language"))}
-          <View style={card} accessibilityRole="radiogroup">
+        {/* "Device language" follows the phone's language (B-3). */}
+        <Section title={t("settings.language")}>
+          <View accessibilityRole="radiogroup">
             {languages.map((lang, i) => (
               <React.Fragment key={lang.value ?? "device"}>
                 {choiceRow({
                   key: lang.value ?? "device",
                   label: lang.label,
-                  icon: lang.icon,
-                  badge: lang.badge,
+                  icon: "globe",
+                  tileColor: "#007AFF",
                   selected: storedLanguage === lang.value,
                   onPress: () => setLanguage(lang.value),
                 })}
-                {i < languages.length - 1 && sep}
+                {i < languages.length - 1 && <Separator inset={space[4] + 29 + space[3]} />}
               </React.Fragment>
             ))}
           </View>
-        </View>
+        </Section>
 
-        {/* Categories */}
-        <View style={styles.section}>
-          {sectionHeader(t("settings.categories"))}
-          <View style={card}>
-            {categories.map((c) => (
+        <Section title={t("settings.categories")}>
+          {categories.map((c) => {
+            const color = dataColor(c.colorHex, isDark);
+            return (
               <View key={c.id}>
-                <TouchableOpacity
-                  style={styles.catRow}
+                <PressableRow
+                  style={styles.row}
                   onPress={() => setEditor({ category: c, isNew: false })}
-                  activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel={`${categoryLabel(c, t)}, ${t("settings.subcatCount", { count: c.subcategories.length })}`}
                   accessibilityHint={t("a11y.editHint")}
                 >
-                  <View style={[styles.catIcon, { backgroundColor: `${c.colorHex}22` }]}>
-                    <CategoryIcon iconName={c.iconName} size={16} color={c.colorHex} />
+                  <View style={[styles.tile, { backgroundColor: tint(color, "soft") }]}>
+                    <CategoryIcon iconName={c.iconName} size={16} color={color} />
                   </View>
-                  <Text style={[styles.catName, { color: colors.text }]} numberOfLines={1}>{categoryLabel(c, t)}</Text>
-                  <Text style={[styles.subCount, { color: colors.textSecondary }]}>
+                  <Text style={[type.body, styles.rowLabel, { color: colors.text }]} numberOfLines={1}>
+                    {categoryLabel(c, t)}
+                  </Text>
+                  <Text style={[type.subheadline, { color: colors.textSecondary }]}>
                     {t("settings.subcatCount", { count: c.subcategories.length })}
                   </Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-                </TouchableOpacity>
-                {sep}
+                  <Icon name="chevronForward" size={14} color={colors.textTertiary} />
+                </PressableRow>
+                <Separator inset={space[4] + 29 + space[3]} />
               </View>
-            ))}
-            <TouchableOpacity style={styles.addCatRow} onPress={handleAddCategory} accessibilityRole="button">
-              <Ionicons name="add-circle" size={20} color={colors.accent} />
-              <Text style={[styles.addCatText, { color: colors.accent }]}>{t("settings.addCategory")}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+            );
+          })}
+          <PressableRow style={styles.row} onPress={handleAddCategory} accessibilityRole="button">
+            <Icon name="plusCircle" size={22} color={colors.accent} />
+            <Text style={[type.body, { color: colors.accent }]}>{t("settings.addCategory")}</Text>
+          </PressableRow>
+        </Section>
 
         {/* Your data (R-11, S-8) */}
-        <View style={styles.section}>
-          {sectionHeader(t("settings.data"))}
-          <View style={card}>
-            <TouchableOpacity style={styles.row} onPress={handleExport} accessibilityRole="button">
-              <Ionicons name="share-outline" size={20} color={colors.accent} style={styles.rowIcon} />
-              <Text style={[styles.rowLabel, { color: colors.accent }]}>{t("settings.export")}</Text>
-            </TouchableOpacity>
-            {sep}
-            <TouchableOpacity style={styles.row} onPress={handleDeleteAll} accessibilityRole="button">
-              <Ionicons name="trash-outline" size={20} color={colors.destructive} style={styles.rowIcon} />
-              <Text style={[styles.rowLabel, { color: colors.destructive }]}>{t("settings.deleteAll")}</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={[styles.footer, { color: colors.textSecondary }]}>{t("settings.dataFooter")}</Text>
-        </View>
+        <Section title={t("settings.data")} footer={t("settings.dataFooter")}>
+          <PressableRow style={styles.row} onPress={handleExport} accessibilityRole="button">
+            <RowTile icon="share" color="#34C759" />
+            <Text style={[type.body, styles.rowLabel, { color: colors.text }]}>{t("settings.export")}</Text>
+          </PressableRow>
+          <Separator inset={space[4] + 29 + space[3]} />
+          <PressableRow style={styles.row} onPress={handleDeleteAll} accessibilityRole="button">
+            <RowTile icon="trash" color="#FF3B30" />
+            <Text style={[type.body, styles.rowLabel, { color: colors.destructive }]}>{t("settings.deleteAll")}</Text>
+          </PressableRow>
+        </Section>
 
-        {/* About */}
-        <View style={styles.section}>
-          {sectionHeader(t("settings.about"))}
-          <View style={card}>
-            <TouchableOpacity
-              style={styles.row}
-              onPress={() => router.push("/privacy")}
-              accessibilityRole="link"
-            >
-              <Text style={[styles.rowLabel, { color: colors.text }]}>{t("privacy.title")}</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-            </TouchableOpacity>
-            {sep}
-            <View style={styles.row}>
-              <Text style={[styles.rowLabel, { color: colors.text }]}>{t("settings.version")}</Text>
-              <Text style={[styles.rowValue, { color: colors.textSecondary }]}>{APP_VERSION}</Text>
-            </View>
+        <Section title={t("settings.about")}>
+          <PressableRow style={styles.row} onPress={() => router.push("/privacy")} accessibilityRole="link">
+            <RowTile icon="doc" color="#8E8E93" />
+            <Text style={[type.body, styles.rowLabel, { color: colors.text }]}>{t("privacy.title")}</Text>
+            <Icon name="chevronForward" size={14} color={colors.textTertiary} />
+          </PressableRow>
+          <Separator inset={space[4] + 29 + space[3]} />
+          <View style={styles.row}>
+            <RowTile icon="info" color="#8E8E93" />
+            <Text style={[type.body, styles.rowLabel, { color: colors.text }]}>{t("settings.version")}</Text>
+            <Text style={[type.body, { color: colors.textSecondary }]}>{APP_VERSION}</Text>
           </View>
-        </View>
+        </Section>
       </ScrollView>
 
       {editor && (
-        <CategoryEditorModal
-          category={editor.category}
-          isNew={editor.isNew}
-          onClose={() => setEditor(null)}
-        />
+        <CategoryEditorModal category={editor.category} isNew={editor.isNew} onClose={() => setEditor(null)} />
       )}
-    </View>
+    </>
   );
 }
 
@@ -328,11 +295,15 @@ function AmountRow({
     if (!allowZero && value === 0 && text.trim() === "") return;
     const result = validateAmount(text, { allowZero });
     if ("error" in result) {
+      haptics.error();
       setError(t(`settings.amountErrors.${result.error}`, { max: formatWholeDenars(MAX_AMOUNT_MKD) }));
       return;
     }
     setText(formatWholeDenars(result.amount));
-    if (result.amount !== value) onSave(result.amount);
+    if (result.amount !== value) {
+      haptics.success();
+      onSave(result.amount);
+    }
   };
 
   const footer = error ?? hint;
@@ -340,22 +311,22 @@ function AmountRow({
   return (
     <View>
       <View style={styles.row}>
-        <Text style={[styles.rowLabel, { color: colors.text }]}>{label}</Text>
+        <Text style={[type.body, styles.rowLabel, { color: colors.text }]}>{label}</Text>
         <TextInput
-          style={[styles.rowInput, { color: colors.accent }]}
+          style={[inputType(type.body), money, styles.rowInput, { color: colors.accent }]}
           value={text}
           onChangeText={(v) => { setText(v); setError(null); }}
           onEndEditing={handleEndEditing}
           keyboardType="number-pad"
           returnKeyType="done"
           placeholder={placeholder}
-          placeholderTextColor={colors.textTertiary}
+          placeholderTextColor={colors.placeholder}
           accessibilityLabel={label}
           accessibilityHint={footer}
         />
       </View>
       {footer ? (
-        <Text style={[styles.rowFooter, { color: error ? colors.destructive : colors.textSecondary }]}>
+        <Text style={[type.footnote, styles.rowFooter, { color: error ? colors.destructive : colors.textSecondary }]}>
           {footer}
         </Text>
       ) : null}
@@ -375,7 +346,7 @@ function CategoryEditorModal({
   onClose: () => void;
 }) {
   const { t }          = useTranslation();
-  const { colors }     = useTheme();
+  const { colors, isDark } = useTheme();
   const insets         = useSafeAreaInsets();
   const addCategory    = useAppStore((s) => s.addCategory);
   const updateCategory = useAppStore((s) => s.updateCategory);
@@ -393,11 +364,13 @@ function CategoryEditorModal({
     const toSave: Category = renamed ? { ...cat, name: name.trim(), nameKey: undefined } : cat;
     if (isNew) addCategory(toSave);
     else updateCategory(toSave);
+    haptics.success();
     onClose();
   };
 
   // Confirm while the sheet is open, then close (B-8).
-  const handleDelete = () =>
+  const handleDelete = () => {
+    haptics.warning();
     Alert.alert(t("settings.editor.delete"), t("settings.editor.deleteBody"), [
       { text: t("common.cancel"), style: "cancel" },
       {
@@ -409,6 +382,7 @@ function CategoryEditorModal({
         },
       },
     ]);
+  };
 
   const addSub = () => {
     const n = newSubName.trim();
@@ -421,6 +395,7 @@ function CategoryEditorModal({
     setCat({ ...cat, subcategories: cat.subcategories.filter((s) => s.id !== id) });
 
   const selectedIcon = categoryIconName(cat.iconName);
+  const catColor = dataColor(cat.colorHex, isDark);
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -435,123 +410,111 @@ function CategoryEditorModal({
         />
 
         <ScrollView
-          style={styles.modalScroll}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space[10] }]}
         >
-          <View style={styles.section}>
-            {sectionTitle(t("settings.editor.sections.basic"), colors.textSecondary)}
-            <View style={[styles.editorCard, { backgroundColor: colors.card }]}>
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder={t("settings.editor.name")}
-                placeholderTextColor={colors.textTertiary}
-                value={name}
-                onChangeText={setName}
-                returnKeyType="done"
-                accessibilityLabel={t("settings.editor.name")}
-              />
-            </View>
-          </View>
+          <Section title={t("settings.editor.sections.basic")}>
+            <TextInput
+              style={[inputType(type.body), styles.input, { color: colors.text }]}
+              placeholder={t("settings.editor.name")}
+              placeholderTextColor={colors.placeholder}
+              value={name}
+              onChangeText={setName}
+              returnKeyType="done"
+              accessibilityLabel={t("settings.editor.name")}
+            />
+          </Section>
 
-          <View style={styles.section}>
-            {sectionTitle(t("settings.editor.sections.color"), colors.textSecondary)}
-            <View style={[styles.editorCard, styles.colorRow, { backgroundColor: colors.card }]} accessibilityRole="radiogroup">
+          <Section title={t("settings.editor.sections.color")}>
+            <View style={styles.grid} accessibilityRole="radiogroup">
               {COLOR_PALETTE.map((hex, i) => {
-                const selected = cat.colorHex === hex;
+                const selected = cat.colorHex.toUpperCase() === hex.toUpperCase();
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={hex}
-                    style={[styles.colorDot, { backgroundColor: hex }, selected && { borderColor: colors.text, borderWidth: 3 }]}
-                    onPress={() => setCat({ ...cat, colorHex: hex })}
+                    style={[styles.swatch, { backgroundColor: dataColor(hex, isDark) }, selected && { borderColor: colors.text, borderWidth: 3 }]}
+                    onPress={() => { haptics.selection(); setCat({ ...cat, colorHex: hex }); }}
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
                     accessibilityLabel={t("a11y.colorOption", { n: i + 1 })}
                   >
-                    {selected && <Ionicons name="checkmark" size={18} color="#ffffff" />}
-                  </TouchableOpacity>
+                    {selected && <Icon name="check" size={18} color="#FFFFFF" />}
+                  </Pressable>
                 );
               })}
             </View>
-          </View>
+          </Section>
 
           {/* The chosen icon is shown on the category's rows (U-15). */}
-          <View style={styles.section}>
-            {sectionTitle(t("settings.editor.sections.icon"), colors.textSecondary)}
-            <View style={[styles.editorCard, styles.colorRow, { backgroundColor: colors.card }]} accessibilityRole="radiogroup">
+          <Section title={t("settings.editor.sections.icon")}>
+            <View style={styles.grid} accessibilityRole="radiogroup">
               {CATEGORY_ICONS.map((ic, i) => {
                 const selected = selectedIcon === ic;
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={ic}
-                    style={[styles.iconBtn, { backgroundColor: selected ? cat.colorHex : colors.inputBg }]}
-                    onPress={() => setCat({ ...cat, iconName: ic })}
+                    style={[styles.iconChoice, { backgroundColor: selected ? catColor : colors.fill }]}
+                    onPress={() => { haptics.selection(); setCat({ ...cat, iconName: ic }); }}
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
                     accessibilityLabel={t("a11y.iconOption", { n: i + 1 })}
                   >
-                    <Ionicons name={ic} size={20} color={selected ? "#ffffff" : colors.text} />
-                  </TouchableOpacity>
+                    <CategoryIcon iconName={ic} size={20} color={selected ? "#FFFFFF" : colors.text} />
+                  </Pressable>
                 );
               })}
             </View>
-          </View>
+          </Section>
 
-          <View style={styles.section}>
-            {sectionTitle(t("settings.editor.sections.subs"), colors.textSecondary)}
-            <View style={[styles.editorCard, { backgroundColor: colors.card }]}>
-              {cat.subcategories.map((s) => (
-                <View key={s.id}>
-                  <View style={styles.subRow}>
-                    <Text style={[styles.subName, { color: colors.text }]}>{categoryLabel(s, t)}</Text>
-                    <TouchableOpacity
-                      onPress={() => removeSub(s.id)}
-                      style={styles.subDelete}
-                      accessibilityRole="button"
-                      accessibilityLabel={t("settings.editor.removeSub", { name: categoryLabel(s, t) })}
-                    >
-                      <Ionicons name="trash-outline" size={18} color={colors.destructive} />
-                    </TouchableOpacity>
-                  </View>
-                  <View style={[styles.sep, { backgroundColor: colors.separator }]} />
+          <Section title={t("settings.editor.sections.subs")}>
+            {cat.subcategories.map((s) => (
+              <View key={s.id}>
+                <View style={[styles.row, styles.subRow]}>
+                  <Text style={[type.body, styles.rowLabel, { color: colors.text }]}>{categoryLabel(s, t)}</Text>
+                  <Pressable
+                    onPress={() => removeSub(s.id)}
+                    style={styles.subDelete}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("settings.editor.removeSub", { name: categoryLabel(s, t) })}
+                  >
+                    <Icon name="trash" size={18} color={colors.destructive} />
+                  </Pressable>
                 </View>
-              ))}
-              <View style={styles.subAddRow}>
-                <TextInput
-                  style={[styles.input, { flex: 1, color: colors.text }]}
-                  placeholder={t("settings.editor.newSub")}
-                  placeholderTextColor={colors.textTertiary}
-                  value={newSubName}
-                  onChangeText={setNewSubName}
-                  returnKeyType="done"
-                  onSubmitEditing={addSub}
-                  accessibilityLabel={t("settings.editor.newSub")}
-                />
-                <TouchableOpacity
-                  onPress={addSub}
-                  style={styles.subAddBtn}
-                  disabled={!newSubName.trim()}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: !newSubName.trim() }}
-                >
-                  <Text style={[styles.subAddText, { color: colors.accent }, !newSubName.trim() && styles.disabled]}>
-                    {t("settings.editor.add")}
-                  </Text>
-                </TouchableOpacity>
+                <Separator />
               </View>
+            ))}
+            <View style={styles.subAddRow}>
+              <TextInput
+                style={[inputType(type.body), styles.input, styles.flex, { color: colors.text }]}
+                placeholder={t("settings.editor.newSub")}
+                placeholderTextColor={colors.placeholder}
+                value={newSubName}
+                onChangeText={setNewSubName}
+                returnKeyType="done"
+                onSubmitEditing={addSub}
+                accessibilityLabel={t("settings.editor.newSub")}
+              />
+              <Pressable
+                onPress={addSub}
+                style={styles.subAddBtn}
+                disabled={!newSubName.trim()}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !newSubName.trim() }}
+              >
+                <Text style={[type.headline, { color: newSubName.trim() ? colors.accent : colors.placeholder }]}>
+                  {t("settings.editor.add")}
+                </Text>
+              </Pressable>
             </View>
-          </View>
+          </Section>
 
           {!isNew && (
-            <TouchableOpacity
-              style={[styles.deleteButton, { backgroundColor: colors.card }]}
-              onPress={handleDelete}
-              accessibilityRole="button"
-            >
-              <Ionicons name="trash" size={18} color={colors.destructive} />
-              <Text style={[styles.deleteText, { color: colors.destructive }]}>{t("settings.editor.delete")}</Text>
-            </TouchableOpacity>
+            <Section>
+              <PressableRow style={[styles.row, styles.centerRow]} onPress={handleDelete} accessibilityRole="button">
+                <Text style={[type.body, { color: colors.destructive }]}>{t("settings.editor.delete")}</Text>
+              </PressableRow>
+            </Section>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -559,69 +522,22 @@ function CategoryEditorModal({
   );
 }
 
-const sectionTitle = (label: string, color: string) => (
-  <Text style={[styles.sectionHeader, { color }]} accessibilityRole="header">
-    {label}
-  </Text>
-);
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content:   { paddingTop: 8 },
-  header:    { paddingHorizontal: 20, paddingBottom: 8 },
-  headerTitle: { fontSize: 34, fontWeight: "700", letterSpacing: 0.3 },
-  section:   { marginHorizontal: 16, marginTop: 20 },
-  sectionHeader: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5, marginBottom: 6, paddingHorizontal: 4 },
-  footer:    { fontSize: 12, marginTop: 6, paddingHorizontal: 4, lineHeight: 17 },
-  card: {
-    borderRadius: 16, overflow: "hidden",
-    shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 10,
-    shadowOffset: { width: 0, height: 2 }, elevation: 3,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  row: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, minHeight: MIN_TOUCH + 8,
-  },
-  rowIcon:   { marginRight: 12 },
-  rowLabel:  { fontSize: 16, flex: 1 },
-  bold:      { fontWeight: "600" },
-  rowInput:  { fontSize: 16, textAlign: "right", minWidth: 100, paddingVertical: 12 },
-  rowValue:  { fontSize: 16 },
-  rowFooter: { fontSize: 12, lineHeight: 16, paddingHorizontal: 16, marginTop: -6, paddingBottom: 12 },
-  sep:       { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
-  catRow: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, minHeight: MIN_TOUCH + 8, gap: 10,
-  },
-  catIcon:   { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
-  catName:   { flex: 1, fontSize: 16 },
-  subCount:  { fontSize: 13, marginRight: 4 },
-  addCatRow: {
-    flexDirection: "row", alignItems: "center",
-    gap: 8, paddingHorizontal: 16, minHeight: MIN_TOUCH + 8,
-  },
-  addCatText:  { fontSize: 16 },
-  themeIcon: {
-    width: 32, height: 32, borderRadius: 8,
-    alignItems: "center", justifyContent: "center", marginRight: 12,
-  },
-  modalScroll: { flex: 1 },
-  editorCard:  { borderRadius: 12, overflow: "hidden" },
-  input:       { paddingHorizontal: 16, paddingVertical: 14, fontSize: 16 },
-  colorRow:    { flexDirection: "row", flexWrap: "wrap", padding: 12, gap: 10 },
-  colorDot:    { width: MIN_TOUCH, height: MIN_TOUCH, borderRadius: MIN_TOUCH / 2, alignItems: "center", justifyContent: "center" },
-  iconBtn:     { width: MIN_TOUCH, height: MIN_TOUCH, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  subRow:      { flexDirection: "row", alignItems: "center", paddingLeft: 16, minHeight: MIN_TOUCH + 4 },
-  subName:     { flex: 1, fontSize: 16 },
-  subDelete:   { width: MIN_TOUCH + 4, height: MIN_TOUCH + 4, alignItems: "center", justifyContent: "center" },
-  subAddRow:   { flexDirection: "row", alignItems: "center" },
-  subAddBtn:   { minHeight: MIN_TOUCH, paddingHorizontal: 16, justifyContent: "center" },
-  subAddText:  { fontSize: 16, fontWeight: "600" },
-  disabled:    { opacity: 0.4 },
-  deleteButton: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, margin: 16, padding: 16, borderRadius: 12, minHeight: MIN_TOUCH,
-  },
-  deleteText: { fontSize: 16, fontWeight: "500" },
+  content:    { paddingHorizontal: GUTTER, paddingTop: space[4], paddingBottom: space[8], gap: SECTION_GAP },
+  flex:       { flex: 1 },
+  row:        { flexDirection: "row", alignItems: "center", gap: space[3], paddingHorizontal: space[4], minHeight: ROW_MIN + 4 },
+  centerRow:  { justifyContent: "center" },
+  rowLabel:   { flex: 1 },
+  rowInput:   { textAlign: "right", minWidth: 100, paddingVertical: space[3] },
+  rowFooter:  { paddingHorizontal: space[4], marginTop: -space[1], paddingBottom: space[3] },
+  tile:       { width: 29, height: 29, alignItems: "center", justifyContent: "center", ...corners(7) },
+  input:      { paddingHorizontal: space[4], paddingVertical: space[3], minHeight: ROW_MIN },
+  grid:       { flexDirection: "row", flexWrap: "wrap", padding: space[3], gap: space[3] },
+  swatch:     { width: ROW_MIN, height: ROW_MIN, borderRadius: ROW_MIN / 2, alignItems: "center", justifyContent: "center" },
+  iconChoice: { width: ROW_MIN, height: ROW_MIN, alignItems: "center", justifyContent: "center", ...corners(radius.sm) },
+  subRow:     { paddingRight: 0 },
+  subDelete:  { width: ROW_MIN + 4, height: ROW_MIN + 4, alignItems: "center", justifyContent: "center" },
+  subAddRow:  { flexDirection: "row", alignItems: "center" },
+  subAddBtn:  { minHeight: ROW_MIN, paddingHorizontal: space[4], justifyContent: "center" },
 });
+

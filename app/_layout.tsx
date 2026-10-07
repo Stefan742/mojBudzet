@@ -2,14 +2,22 @@
 import 'react-native-get-random-values';
 import { useSyncExternalStore } from 'react';
 import { Text, TouchableOpacity, View, StyleSheet } from 'react-native';
-import { Stack, type ErrorBoundaryProps } from 'expo-router';
+import {
+  Stack,
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider as NavigationThemeProvider,
+  type ErrorBoundaryProps,
+} from 'expo-router';
 import 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import '@/i18n';
 import { useAppStore } from '@/store/useAppStore';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import LoadingScreen from '@/components/LoadingScreen';
+import { ToastHost } from '@/components/ui/Toast';
 import { useTheme } from '@/hooks/useTheme';
+import { useLargeTitleOptions } from '@/hooks/useLargeTitleOptions';
 
 const subscribeHydration = (onChange: () => void) => useAppStore.persist.onFinishHydration(onChange);
 const getHydrated = () => useAppStore.persist.hasHydrated();
@@ -20,13 +28,30 @@ export default function RootLayout() {
   const hydrated    = useSyncExternalStore(subscribeHydration, getHydrated);
   const isOnboarded = useAppStore((s) => s.isOnboarded);
   const { t }       = useTranslation();
-  const { colors }  = useTheme();
+  const { colors, isDark } = useTheme();
+  const headerOptions = useLargeTitleOptions();
+
+  // Native navigation (tabs, headers) draws with the app's colours, so there
+  // is no white flash behind the iOS 26 tab bar in dark mode.
+  const base = isDark ? DarkTheme : DefaultTheme;
+  const navTheme = {
+    ...base,
+    colors: {
+      ...base.colors,
+      primary: colors.accent,
+      background: colors.background,
+      card: colors.background,
+      text: colors.text,
+      border: colors.separator,
+    },
+  };
 
   return (
     <ThemeProvider>
       {hydrated ? (
         // Protected routes redirect synchronously once isOnboarded is known,
         // so returning users never see onboarding flash (B-4).
+        <NavigationThemeProvider value={navTheme}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Protected guard={isOnboarded}>
             <Stack.Screen name="(tabs)" />
@@ -36,16 +61,11 @@ export default function RootLayout() {
           </Stack.Protected>
           <Stack.Screen
             name="privacy"
-            options={{
-              headerShown: true,
-              title: t('privacy.title'),
-              headerBackTitle: t('common.back'),
-              headerStyle: { backgroundColor: colors.background },
-              headerTintColor: colors.accent,
-              headerTitleStyle: { color: colors.text },
-            }}
+            options={{ ...headerOptions, headerShown: true, title: t('privacy.title') }}
           />
         </Stack>
+        <ToastHost />
+        </NavigationThemeProvider>
       ) : (
         <LoadingScreen />
       )}

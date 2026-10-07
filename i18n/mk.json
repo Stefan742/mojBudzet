@@ -17,7 +17,8 @@
     "uncategorized": "Без категорија",
     "income": "Приходи",
     "expenses": "Трошоци",
-    "saved": "Заштедено"
+    "saved": "Заштедено",
+    "byCategory": "ПО КАТЕГОРИИ"
   },
   "history": {
     "title": "Историја",
@@ -226,7 +227,9 @@
     "confirm": "Потврди",
     "vault": "Сефот",
     "vaultDesc": "Зачувај без конкретна намена",
-    "carryOverHint": "Парите остануваат во салдото."
+    "carryOverHint": "Парите остануваат во салдото.",
+    "toastCarried": "Остануваат во салдото",
+    "toastSaved": "Зачувано во „{{name}}“"
   },
   "onboarding": {
     "title": "Добредојде!",
