@@ -1,9 +1,10 @@
 import type { Category, PersistedState } from "../models";
 import { defaultCategories } from "../models/Category";
 import { monthKey } from "../utils/dates";
+import { LEGACY_COLOR_MAP } from "../constants/palette";
 
 /** Bump when the persisted shape changes, and add a step to migratePersistedState. */
-export const STORE_VERSION = 2;
+export const STORE_VERSION = 3;
 
 /**
  * Repairs categories that were saved with a shared id (KB-1).
@@ -123,6 +124,16 @@ export function migratePersistedState(
     if (typeof s.language !== "string") s.language = null;
     // Currency is fixed to MKD and shown from i18n (I-8, B-5).
     delete s.currency;
+  }
+
+  if (fromVersion < 3) {
+    // Material colours become their iOS system counterparts (DESIGN.md §4.5).
+    const recolor = <T extends { colorHex?: string }>(item: T): T => {
+      const next = item.colorHex ? LEGACY_COLOR_MAP[item.colorHex.toUpperCase()] : undefined;
+      return next ? { ...item, colorHex: next } : item;
+    };
+    if (Array.isArray(s.categories)) s.categories = (s.categories as Loose[]).map(recolor);
+    if (Array.isArray(s.savingsGoals)) s.savingsGoals = (s.savingsGoals as Loose[]).map(recolor);
   }
 
   return s as Partial<PersistedState>;

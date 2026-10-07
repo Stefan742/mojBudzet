@@ -116,7 +116,7 @@ describe("export (R-11)", () => {
     store().saveFromBalance(100, null, "");
     const parsed = JSON.parse(buildExport(persistedSnapshot(), new Date(2026, 9, 6)));
     expect(parsed.app).toBe("mojbudzet");
-    expect(parsed.storeVersion).toBe(2);
+    expect(parsed.storeVersion).toBe(3);
     expect(parsed.data.vaultAmount).toBe(100);
     expect(parsed.data.transactions).toHaveLength(1);
   });

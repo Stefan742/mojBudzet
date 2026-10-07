@@ -86,3 +86,19 @@ describe("refreshDefaultCategories (D-6)", () => {
     expect(keywords).toContain("vero");
   });
 });
+
+describe("migratePersistedState to v3 (palette)", () => {
+  it("maps Material colours of categories and goals to iOS system colours", () => {
+    const out = migratePersistedState(
+      {
+        categories: [{ id: "a", name: "A", colorHex: "#4caf50", iconName: "cart", subcategories: [] },
+                     { id: "b", name: "B", colorHex: "#123456", iconName: "cart", subcategories: [] }],
+        savingsGoals: [{ id: "g", name: "G", targetAmount: 1, currentAmount: 0, colorHex: "#00BCD4" }],
+      },
+      2,
+      { newId: () => "x", now: new Date(2026, 9, 7) }
+    );
+    expect(out.categories?.map((c) => c.colorHex)).toEqual(["#34C759", "#123456"]);
+    expect(out.savingsGoals?.[0].colorHex).toBe("#30B0C7");
+  });
+});

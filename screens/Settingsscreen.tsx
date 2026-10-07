@@ -62,7 +62,7 @@ export default function SettingsScreen() {
   // render-time values, which gave every new category the same id (KB-1).
   const handleAddCategory = () =>
     setEditor({
-      category: { id: uuid(), name: "", colorHex: "#9C27B0", iconName: DEFAULT_CATEGORY_ICON, subcategories: [] },
+      category: { id: uuid(), name: "", colorHex: "#AF52DE", iconName: DEFAULT_CATEGORY_ICON, subcategories: [] },
       isNew: true,
     });
 

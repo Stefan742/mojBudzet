@@ -500,7 +500,7 @@ export default function SavingsScreen() {
   const openNewGoal = () =>
     // The id is created here, in the handler, never during render (KB-1).
     setEditor({
-      goal: { id: uuid(), name: "", targetAmount: 0, currentAmount: 0, colorHex: "#00BCD4", deadline: undefined },
+      goal: { id: uuid(), name: "", targetAmount: 0, currentAmount: 0, colorHex: "#30B0C7", deadline: undefined },
       isNew: true,
     });
 
