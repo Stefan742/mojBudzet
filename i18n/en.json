@@ -87,11 +87,11 @@
       "title": "Budget suggestion",
       "question": "What is your monthly income?",
       "sub": "We will split it by the 50/25/15/10 rule across your categories.",
-      "generate": "Generate suggestion →",
       "preview": "Review the suggestions and apply them with one tap.",
-      "back": "← Back",
       "apply": "Apply",
-      "calibrated": "calibrated"
+      "calibrated": "calibrated",
+      "generateShort": "Suggest",
+      "previewTitle": "SUGGESTION"
     },
     "buckets": {
       "needs": "Needs 50%",
@@ -105,7 +105,8 @@
     "overLimit": "Over the limit by {{amount}}",
     "nearLimit": "Close to the limit: {{amount}} left",
     "limitFor": "Monthly limit for {{name}}",
-    "setLimitFor": "Set limit for {{name}}"
+    "setLimitFor": "Set limit for {{name}}",
+    "applied": "Budget applied"
   },
   "savings": {
     "title": "Savings",

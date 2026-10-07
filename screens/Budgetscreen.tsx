@@ -4,19 +4,19 @@ import {
   Text,
   FlatList,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   KeyboardAvoidingView,
-  Platform,
   Modal,
   ScrollView,
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 
 import { useAppStore } from "../store/useAppStore";
+import { showToast } from "../store/session";
 import { formatMoney } from "../utils/money";
+import { haptics } from "../utils/haptics";
 import { Category, categoryLabel, incomeForMonth, monthKey } from "../models";
 import { spentInCategory } from "../store/selectors";
 import {
@@ -26,27 +26,35 @@ import {
 import { useTheme } from "@/hooks/useTheme";
 import { useAmountField } from "@/hooks/useAmountField";
 import { CategoryIcon } from "@/components/CategoryIcon";
-import { MIN_TOUCH, useTabBarSpace } from "@/constants/layout";
+import { Icon } from "@/components/Icon";
+import { ModalHeader } from "@/components/ModalHeader";
+import { Button } from "@/components/ui/Button";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Section, Separator } from "@/components/ui/Section";
+import { dataColor } from "@/constants/palette";
+import {
+  GUTTER, ROW_MIN, SECTION_GAP, corners, inputType, money, radius, space, tint, type,
+} from "@/constants/design";
 
-// ─── Bucket colors ─────────────────────────────────────────────────────────────
+// ─── Bucket colours (system palette) ──────────────────────────────────────────
 const BUCKET_COLOR: Record<string, string> = {
-  needs:     "#4CAF50",
-  wants:     "#FF9800",
-  savings:   "#2196F3",
-  emergency: "#F44336",
-  debt:      "#9C27B0",
+  needs:     "#34C759",
+  wants:     "#FF9500",
+  savings:   "#007AFF",
+  emergency: "#FF3B30",
+  debt:      "#AF52DE",
 };
 
 /** Share of the limit at which a row starts warning (U-14). */
 const WARN_AT = 0.8;
+const TILE = 36;
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function BudgetScreen() {
   const { t } = useTranslation();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const bottomSpace = useTabBarSpace();
   const currency = t("common.currency");
 
   const categories             = useAppStore((s) => s.categories);
@@ -56,7 +64,7 @@ export default function BudgetScreen() {
   const transactions           = useAppStore((s) => s.transactions);
   const applyBudgetSuggestions = useAppStore((s) => s.applyBudgetSuggestions);
 
-  // Suggestion modal state
+  // Suggestion sheet state
   const [modalVisible, setModalVisible] = useState(false);
   const income                          = useAmountField();
   const [suggestions, setSuggestions]   = useState<BudgetSuggestion[]>([]);
@@ -74,7 +82,7 @@ export default function BudgetScreen() {
     budgets.find((b) => b.categoryId === categoryId)?.monthlyLimit ?? 0;
 
   const openModal = () => {
-    // Pre-fill with the monthly income from Settings at the moment the modal opens.
+    // Pre-fill with the monthly income from Settings at the moment the sheet opens.
     if (monthlyIncome > 0) income.setAmount(monthlyIncome);
     else income.reset();
     setStep("income");
@@ -83,7 +91,11 @@ export default function BudgetScreen() {
 
   const handleGenerate = () => {
     const value = income.parse();
-    if (value === null) return;
+    if (value === null) {
+      haptics.error();
+      return;
+    }
+    haptics.selection();
     setSuggestions(generateBudgetSuggestion({ income: value, categories, transactions }));
     setStep("preview");
   };
@@ -91,58 +103,48 @@ export default function BudgetScreen() {
   const handleApply = () => {
     applyBudgetSuggestions(suggestions);
     setModalVisible(false);
+    haptics.success();
+    showToast(t("budget.applied"));
   };
 
   const catMap = new Map(categories.map((c) => [c.id, c]));
 
-  // Android shows pageSheet modals full-screen with no insets.
-  const modalHeaderTopPad = Platform.OS === "android" ? insets.top + 8 : 8;
-  const modalBottomPad    = Math.max(insets.bottom, 16);
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <>
       <FlatList
         data={categories}
         // The limit is part of the key, so a row's input shows a limit that
         // changed elsewhere (AI "Apply") instead of its stale text (B-16).
         keyExtractor={(c) => `${c.id}:${limitOf(c.id)}`}
-        contentContainerStyle={[styles.content, { paddingBottom: bottomSpace }]}
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustKeyboardInsets
+        style={{ backgroundColor: colors.background }}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: colors.text }]} accessibilityRole="header">
-              {t("budget.title")}
-            </Text>
-            <Text style={[styles.headerSub, { color: colors.textSecondary }]}>{t("budget.subtitle")}</Text>
+          <View style={styles.listHeader}>
+            <Text style={[type.subheadline, { color: colors.textSecondary }]}>{t("budget.subtitle")}</Text>
             {categories.length > 0 && (
-              <TouchableOpacity
-                style={[styles.aiBtn, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
-                onPress={openModal}
-                activeOpacity={0.82}
-                accessibilityRole="button"
-              >
-                <Ionicons name="sparkles" size={15} color={colors.onAccent} />
-                <Text style={[styles.aiBtnText, { color: colors.onAccent }]}>{t("budget.aiSuggest")}</Text>
-              </TouchableOpacity>
+              <Button title={t("budget.aiSuggest")} variant="tinted" icon="sparkles" onPress={openModal} />
             )}
           </View>
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="pricetags-outline" size={56} color={colors.separator} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("budget.noCategories")}</Text>
-            <Text style={[styles.emptySub, { color: colors.textSecondary }]}>{t("budget.noCategoriesSub")}</Text>
+            <Icon name="tags" size={48} color={colors.placeholder} />
+            <Text style={[type.title3, { color: colors.text }]}>{t("budget.noCategories")}</Text>
+            <Text style={[type.footnote, styles.emptySub, { color: colors.textSecondary }]}>{t("budget.noCategoriesSub")}</Text>
           </View>
         }
         ListFooterComponent={
           categories.length > 0 ? (
-            <Text style={[styles.footer, { color: colors.textSecondary }]}>{t("budget.footer")}</Text>
+            <Text style={[type.footnote, styles.footer, { color: colors.textSecondary }]}>{t("budget.footer")}</Text>
           ) : null
         }
         renderItem={({ item }) => <BudgetRow category={item} limit={limitOf(item.id)} />}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: space[3] }} />}
       />
 
       <Modal
@@ -151,128 +153,90 @@ export default function BudgetScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={[styles.modal, { backgroundColor: colors.background }]}>
-          <View
-            style={[
-              styles.modalHeader,
-              { backgroundColor: colors.background, borderBottomColor: colors.separator, paddingTop: modalHeaderTopPad },
-            ]}
-          >
-            <TouchableOpacity
-              onPress={() => setModalVisible(false)}
-              style={styles.closeBtn}
-              accessibilityRole="button"
-              accessibilityLabel={t("common.close")}
-            >
-              <Ionicons name="close" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.text }]} accessibilityRole="header">
-              {t("budget.modal.title")}
-            </Text>
-            <View style={styles.closeBtn} />
-          </View>
+        <KeyboardAvoidingView style={[styles.flex, { backgroundColor: colors.background }]} behavior="padding">
+          <ModalHeader
+            title={t("budget.modal.title")}
+            cancelLabel={step === "income" ? t("common.cancel") : t("common.back")}
+            onCancel={() => (step === "income" ? setModalVisible(false) : setStep("income"))}
+            saveLabel={step === "income" ? t("budget.modal.generateShort") : t("budget.modal.apply")}
+            onSave={step === "income" ? handleGenerate : handleApply}
+            saveDisabled={step === "income" ? !income.text : suggestions.length === 0}
+          />
 
           {step === "income" ? (
-            <KeyboardAvoidingView style={[styles.modalBody, { paddingBottom: modalBottomPad }]} behavior="padding">
-              <View style={[styles.stepCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
-                <Ionicons name="cash-outline" size={36} color={colors.accent} />
-                <Text style={[styles.stepTitle, { color: colors.text }]}>{t("budget.modal.question")}</Text>
-                <Text style={[styles.stepSub, { color: colors.textSecondary }]}>{t("budget.modal.sub")}</Text>
-                <View style={[styles.incomeInputRow, { backgroundColor: colors.inputBg }]}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={[styles.sheetContent, { paddingBottom: insets.bottom + space[6] }]}
+            >
+              <View style={styles.sheetIntro}>
+                <View style={[styles.badge, { backgroundColor: tint(colors.accent, "subtle") }]}>
+                  <Icon name="money" size={26} color={colors.accent} />
+                </View>
+                <Text style={[type.title3, styles.center, { color: colors.text }]}>{t("budget.modal.question")}</Text>
+                <Text style={[type.subheadline, styles.center, { color: colors.textSecondary }]}>{t("budget.modal.sub")}</Text>
+              </View>
+              <Section footer={income.errorText} footerColor={colors.destructive}>
+                <View style={styles.incomeRow}>
                   <TextInput
-                    style={[styles.incomeInput, { color: colors.text }]}
+                    style={[inputType(type.title1), money, styles.incomeInput, { color: colors.text }]}
                     value={income.text}
                     onChangeText={income.onChangeText}
                     placeholder="0"
-                    placeholderTextColor={colors.textTertiary}
+                    placeholderTextColor={colors.placeholder}
                     keyboardType="number-pad"
                     autoFocus
                     accessibilityLabel={t("budget.modal.question")}
                   />
-                  <Text style={[styles.incomeCurrency, { color: colors.textSecondary }]}>{currency}</Text>
+                  <Text style={[type.body, { color: colors.textSecondary }]}>{currency}</Text>
                 </View>
-                {income.errorText && (
-                  <Text style={[styles.fieldError, { color: colors.destructive }]}>{income.errorText}</Text>
-                )}
-                <View style={styles.rulePills}>
-                  {Object.entries(BUCKET_LABEL).map(([b, label]) => (
-                    <View key={b} style={[styles.pill, { backgroundColor: `${BUCKET_COLOR[b]}18` }]}>
-                      <View style={[styles.pillDot, { backgroundColor: BUCKET_COLOR[b] }]} />
-                      <Text style={[styles.pillText, { color: colors.text }]}>{label}</Text>
-                    </View>
-                  ))}
-                </View>
+              </Section>
+              <View style={styles.rulePills}>
+                {Object.entries(BUCKET_LABEL).map(([b, label]) => (
+                  <View key={b} style={[styles.pill, { backgroundColor: colors.fill }]}>
+                    <View style={[styles.pillDot, { backgroundColor: dataColor(BUCKET_COLOR[b], isDark) }]} />
+                    <Text style={[type.footnote, { color: colors.text }]}>{label}</Text>
+                  </View>
+                ))}
               </View>
-              <TouchableOpacity
-                style={[styles.primaryBtn, { backgroundColor: income.text ? colors.accent : colors.inputBg }]}
-                onPress={handleGenerate}
-                disabled={!income.text}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !income.text }}
-              >
-                <Text style={[styles.primaryBtnText, { color: income.text ? colors.onAccent : colors.textTertiary }]}>
-                  {t("budget.modal.generate")}
-                </Text>
-              </TouchableOpacity>
-            </KeyboardAvoidingView>
+            </ScrollView>
           ) : (
-            <View style={[styles.modalBody, { paddingBottom: modalBottomPad }]}>
-              <Text style={[styles.previewHint, { color: colors.textSecondary }]}>{t("budget.modal.preview")}</Text>
-              <ScrollView style={styles.previewScroll} showsVerticalScrollIndicator={false}>
-                {suggestions.map((s) => {
+            <ScrollView contentContainerStyle={[styles.sheetContent, { paddingBottom: insets.bottom + space[6] }]}>
+              <Section title={t("budget.modal.previewTitle")} footer={t("budget.modal.preview")}>
+                {suggestions.map((s, i) => {
                   const cat = catMap.get(s.categoryId);
                   if (!cat) return null;
-                  const color = BUCKET_COLOR[s.bucket] ?? colors.textSecondary;
+                  const color = dataColor(cat.colorHex, isDark);
                   return (
-                    <View
-                      key={s.categoryId}
-                      style={[styles.previewRow, { backgroundColor: colors.card, shadowColor: colors.shadow }]}
-                      accessible
-                      accessibilityLabel={`${categoryLabel(cat, t)}, ${BUCKET_LABEL[s.bucket] ?? s.bucket}, ${formatMoney(s.suggestedMonthlyLimit, currency)}`}
-                    >
-                      <View style={[styles.previewIcon, { backgroundColor: `${cat.colorHex}22` }]}>
-                        <CategoryIcon iconName={cat.iconName} size={16} color={cat.colorHex} />
-                      </View>
-                      <View style={styles.previewInfo}>
-                        <Text style={[styles.previewName, { color: colors.text }]}>{categoryLabel(cat, t)}</Text>
-                        <View style={styles.previewBucketRow}>
-                          <View style={[styles.previewBucketDot, { backgroundColor: color }]} />
-                          <Text style={[styles.previewBucket, { color: colors.textSecondary }]}>
+                    <View key={s.categoryId}>
+                      {i > 0 && <Separator inset={space[4] + TILE + space[3]} />}
+                      <View
+                        style={styles.previewRow}
+                        accessible
+                        accessibilityLabel={`${categoryLabel(cat, t)}, ${BUCKET_LABEL[s.bucket] ?? s.bucket}, ${formatMoney(s.suggestedMonthlyLimit, currency)}`}
+                      >
+                        <View style={[styles.tile, { backgroundColor: tint(color, "soft") }]}>
+                          <CategoryIcon iconName={cat.iconName} size={18} color={color} />
+                        </View>
+                        <View style={styles.flex}>
+                          <Text style={[type.body, { color: colors.text }]}>{categoryLabel(cat, t)}</Text>
+                          <Text style={[type.footnote, { color: colors.textSecondary }]}>
                             {BUCKET_LABEL[s.bucket] ?? s.bucket}
                             {s.confidence < 1 ? ` · ${t("budget.modal.calibrated")}` : ""}
                           </Text>
                         </View>
+                        <Text style={[type.headline, money, { color: colors.text }]}>
+                          {formatMoney(s.suggestedMonthlyLimit, currency)}
+                        </Text>
                       </View>
-                      <Text style={[styles.previewAmount, { color: colors.text }]}>
-                        {formatMoney(s.suggestedMonthlyLimit, currency)}
-                      </Text>
                     </View>
                   );
                 })}
-              </ScrollView>
-              <View style={styles.actionRow}>
-                <TouchableOpacity
-                  style={[styles.secondaryBtn, { backgroundColor: colors.inputBg }]}
-                  onPress={() => setStep("income")}
-                  accessibilityRole="button"
-                >
-                  <Text style={[styles.secondaryBtnText, { color: colors.text }]}>{t("budget.modal.back")}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.primaryBtn, styles.flex, { backgroundColor: colors.accent }]}
-                  onPress={handleApply}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                >
-                  <Text style={[styles.primaryBtnText, { color: colors.onAccent }]}>{t("budget.modal.apply")}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+              </Section>
+            </ScrollView>
           )}
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </>
   );
 }
 
@@ -280,7 +244,7 @@ export default function BudgetScreen() {
 
 function BudgetRow({ category, limit }: { category: Category; limit: number }) {
   const { t } = useTranslation();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const currency  = t("common.currency");
   const setBudget = useAppStore((s) => s.setBudget);
   // Select the number, not a function, so the row re-renders when
@@ -289,49 +253,51 @@ function BudgetRow({ category, limit }: { category: Category; limit: number }) {
   // Empty text and 0 both remove the limit.
   const limitField = useAmountField(limit, { allowZero: true });
 
+  const color    = dataColor(category.colorHex, isDark);
   const ratio    = limit > 0 ? spent / limit : 0;
-  const progress = Math.min(1, ratio);
-  const progressColor = ratio >= 1 ? colors.destructive : ratio >= WARN_AT ? colors.warning : category.colorHex;
-  const name = categoryLabel(category, t);
+  const status   = ratio >= 1 ? colors.destructive : ratio >= WARN_AT ? colors.warning : color;
+  const name     = categoryLabel(category, t);
 
   const handleSet = () => {
     const value = limitField.text.trim() === "" ? 0 : limitField.parse();
-    if (value === null) return;
+    if (value === null) {
+      haptics.error();
+      return;
+    }
     setBudget(category.id, value);
+    haptics.success();
   };
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+    <View style={[styles.card, { backgroundColor: colors.card }]}>
       <View
         style={styles.rowTop}
         accessible
         accessibilityLabel={`${name}, ${formatMoney(spent, currency)}${limit > 0 ? ` / ${formatMoney(limit, currency)}, ${Math.round(ratio * 100)}%` : ""}`}
       >
-        <View style={[styles.iconCircle, { backgroundColor: `${category.colorHex}22` }]}>
-          <CategoryIcon iconName={category.iconName} size={18} color={category.colorHex} />
+        <View style={[styles.tile, { backgroundColor: tint(color, "soft") }]}>
+          <CategoryIcon iconName={category.iconName} size={18} color={color} />
         </View>
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={[styles.categoryName, { color: colors.text }]}>{name}</Text>
-          <Text style={[styles.amounts, { color: colors.textSecondary }]}>
+        <View style={styles.flex}>
+          <Text style={[type.headline, { color: colors.text }]}>{name}</Text>
+          <Text style={[type.subheadline, money, { color: colors.textSecondary }]}>
             {formatMoney(spent, currency)}{limit > 0 ? ` / ${formatMoney(limit, currency)}` : ""}
           </Text>
         </View>
         {limit > 0 && (
-          <Text style={[styles.pct, { color: ratio >= WARN_AT ? progressColor : colors.text }]}>{Math.round(ratio * 100)}%</Text>
+          <Text style={[type.headline, money, { color: ratio >= WARN_AT ? status : colors.textSecondary }]}>
+            {Math.round(ratio * 100)}%
+          </Text>
         )}
       </View>
 
-      {limit > 0 && (
-        <View style={[styles.progressTrack, { backgroundColor: colors.separator }]}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: progressColor }]} />
-        </View>
-      )}
+      {limit > 0 && <ProgressBar progress={ratio} color={status} />}
 
       {/* The warning the footer promises (U-14). */}
       {limit > 0 && ratio >= WARN_AT && (
         <View style={styles.warningRow}>
-          <Ionicons name={ratio >= 1 ? "alert-circle" : "warning"} size={14} color={progressColor} />
-          <Text style={[styles.warningText, { color: colors.text }]}>
+          <Icon name={ratio >= 1 ? "alert" : "warning"} size={14} color={status} />
+          <Text style={[type.footnote, styles.flex, { color: colors.text }]}>
             {ratio >= 1
               ? t("budget.overLimit", { amount: formatMoney(spent - limit, currency) })
               : t("budget.nearLimit", { amount: formatMoney(limit - spent, currency) })}
@@ -339,13 +305,11 @@ function BudgetRow({ category, limit }: { category: Category; limit: number }) {
         </View>
       )}
 
-      <View style={[styles.divider, { backgroundColor: colors.separator }]} />
-
       <View style={styles.inputRow}>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
+          style={[inputType(type.body), money, styles.input, { backgroundColor: colors.fill, color: colors.text }]}
           placeholder={t("budget.monthlyLimit")}
-          placeholderTextColor={colors.textTertiary}
+          placeholderTextColor={colors.placeholder}
           value={limitField.text}
           onChangeText={limitField.onChangeText}
           keyboardType="number-pad"
@@ -353,17 +317,17 @@ function BudgetRow({ category, limit }: { category: Category; limit: number }) {
           onSubmitEditing={handleSet}
           accessibilityLabel={t("budget.limitFor", { name })}
         />
-        <TouchableOpacity
+        <Pressable
           style={[styles.setButton, { backgroundColor: colors.accent }]}
           onPress={handleSet}
           accessibilityRole="button"
           accessibilityLabel={t("budget.setLimitFor", { name })}
         >
-          <Text style={[styles.setButtonText, { color: colors.onAccent }]}>{t("budget.setLimit")}</Text>
-        </TouchableOpacity>
+          <Text style={[type.headline, { color: colors.onAccent }]}>{t("budget.setLimit")}</Text>
+        </Pressable>
       </View>
       {limitField.errorText && (
-        <Text style={[styles.fieldError, { color: colors.destructive }]}>{limitField.errorText}</Text>
+        <Text style={[type.footnote, { color: colors.destructive }]}>{limitField.errorText}</Text>
       )}
     </View>
   );
@@ -372,132 +336,27 @@ function BudgetRow({ category, limit }: { category: Category; limit: number }) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content:   { paddingHorizontal: 20 },
-  flex:      { flex: 1 },
-
-  header: { paddingTop: 8, paddingBottom: 16, gap: 10 },
-  headerTitle: { fontSize: 34, fontWeight: "700", letterSpacing: 0.3 },
-  headerSub: { fontSize: 13 },
-
-  aiBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 12,
-    minHeight: MIN_TOUCH,
-    paddingHorizontal: 18,
-    alignSelf: "stretch",
-    justifyContent: "center",
-    shadowOpacity: 0.28,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  aiBtnText: { fontSize: 14, fontWeight: "600" },
-
-  empty:      { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyTitle: { fontSize: 20, fontWeight: "600", textAlign: "center" },
-  emptySub:   { fontSize: 14, textAlign: "center", paddingHorizontal: 32 },
-
-  footer: { fontSize: 12, marginTop: 16, lineHeight: 18, textAlign: "center", paddingHorizontal: 8 },
-
-  card: {
-    borderRadius: 16,
-    padding: 16,
-    gap: 10,
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  rowTop:     { flexDirection: "row", alignItems: "center" },
-  iconCircle: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  categoryName: { fontSize: 16, fontWeight: "600" },
-  amounts:      { fontSize: 13, marginTop: 1 },
-  pct:          { fontSize: 15, fontWeight: "700", marginLeft: 8 },
-
-  progressTrack: { height: 8, borderRadius: 4, overflow: "hidden" },
-  progressFill:  { height: 8, borderRadius: 4 },
-  warningRow:    { flexDirection: "row", alignItems: "center", gap: 6 },
-  warningText:   { fontSize: 13, flex: 1 },
-
-  divider: { height: StyleSheet.hairlineWidth },
-
-  inputRow: { flexDirection: "row", gap: 10, alignItems: "center" },
-  input: { flex: 1, borderRadius: 10, paddingHorizontal: 14, minHeight: MIN_TOUCH, fontSize: 15 },
-  setButton: { borderRadius: 10, paddingHorizontal: 18, minHeight: MIN_TOUCH, justifyContent: "center" },
-  setButtonText: { fontSize: 15, fontWeight: "600" },
-  fieldError: { fontSize: 13 },
-
-  modal: { flex: 1 },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
-    paddingBottom: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  closeBtn: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: "center", justifyContent: "center" },
-  modalTitle: { fontSize: 17, fontWeight: "600", flex: 1, textAlign: "center" },
-  modalBody: { flex: 1, paddingHorizontal: 20, paddingTop: 24, gap: 16 },
-
-  stepCard: {
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
-    gap: 12,
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  stepTitle: { fontSize: 18, fontWeight: "700", textAlign: "center" },
-  stepSub:   { fontSize: 13, textAlign: "center", lineHeight: 19 },
-  incomeInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-    alignSelf: "stretch",
-    marginTop: 4,
-  },
-  incomeInput:    { flex: 1, fontSize: 28, fontWeight: "700", textAlign: "right" },
-  incomeCurrency: { fontSize: 18, fontWeight: "500" },
-
-  rulePills: { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 4 },
-  pill:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  pillDot:   { width: 7, height: 7, borderRadius: 4 },
-  pillText:  { fontSize: 12, fontWeight: "600" },
-
-  previewHint:   { fontSize: 13, textAlign: "center", marginBottom: 4 },
-  previewScroll: { flex: 1 },
-  previewRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    gap: 12,
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  previewIcon:      { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  previewInfo:      { flex: 1, gap: 3 },
-  previewName:      { fontSize: 15, fontWeight: "600" },
-  previewBucketRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  previewBucketDot: { width: 6, height: 6, borderRadius: 3 },
-  previewBucket:    { fontSize: 12, fontWeight: "600" },
-  previewAmount:    { fontSize: 15, fontWeight: "700" },
-
-  actionRow: { flexDirection: "row", gap: 10, paddingTop: 8 },
-  primaryBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", minHeight: MIN_TOUCH },
-  primaryBtnText: { fontSize: 16, fontWeight: "600" },
-  secondaryBtn: { flex: 1, borderRadius: 14, paddingVertical: 15, alignItems: "center", minHeight: MIN_TOUCH },
-  secondaryBtnText: { fontSize: 16, fontWeight: "600" },
+  flex:         { flex: 1 },
+  center:       { textAlign: "center" },
+  content:      { paddingHorizontal: GUTTER, paddingTop: space[2], paddingBottom: space[8], flexGrow: 1 },
+  listHeader:   { gap: space[4], marginBottom: SECTION_GAP },
+  empty:        { alignItems: "center", paddingVertical: space[10], gap: space[3] },
+  emptySub:     { textAlign: "center", paddingHorizontal: space[8] },
+  footer:       { marginTop: space[4], textAlign: "center", paddingHorizontal: space[2] },
+  card:         { padding: space[4], gap: space[3], ...corners(radius.lg) },
+  rowTop:       { flexDirection: "row", alignItems: "center", gap: space[3] },
+  tile:         { width: TILE, height: TILE, alignItems: "center", justifyContent: "center", ...corners(radius.sm) },
+  warningRow:   { flexDirection: "row", alignItems: "center", gap: space[2] },
+  inputRow:     { flexDirection: "row", gap: space[2], alignItems: "center" },
+  input:        { flex: 1, paddingHorizontal: space[3], minHeight: ROW_MIN, borderRadius: radius.sm },
+  setButton:    { paddingHorizontal: space[4], minHeight: ROW_MIN, justifyContent: "center", ...corners(radius.sm) },
+  sheetContent: { paddingHorizontal: GUTTER, paddingTop: space[4], gap: SECTION_GAP },
+  sheetIntro:   { alignItems: "center", gap: space[2] },
+  badge:        { width: 56, height: 56, alignItems: "center", justifyContent: "center", marginBottom: space[2], ...corners(radius.lg) },
+  incomeRow:    { flexDirection: "row", alignItems: "center", gap: space[2], paddingHorizontal: space[4], minHeight: ROW_MIN + 20 },
+  incomeInput:  { flex: 1, textAlign: "right", paddingVertical: space[2] },
+  rulePills:    { flexDirection: "row", flexWrap: "wrap", gap: space[2], justifyContent: "center" },
+  pill:         { flexDirection: "row", alignItems: "center", gap: space[2], paddingHorizontal: space[3], paddingVertical: space[1] + 2, ...corners(radius.pill) },
+  pillDot:      { width: 8, height: 8, borderRadius: 4 },
+  previewRow:   { flexDirection: "row", alignItems: "center", gap: space[3], paddingHorizontal: space[4], paddingVertical: space[3] },
 });
