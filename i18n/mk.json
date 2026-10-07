@@ -18,7 +18,12 @@
     "income": "Приходи",
     "expenses": "Трошоци",
     "saved": "Заштедено",
-    "byCategory": "ПО КАТЕГОРИИ"
+    "byCategory": "ПО КАТЕГОРИИ",
+    "tapHint": "Допри категорија за да го видиш буџетот",
+    "noBudget": "Нема поставен буџет",
+    "budgetLeft": "Преостануваат {{amount}} · {{pct}}%",
+    "budgetOver": "Буџетот е надминат за {{amount}}",
+    "ofLimit": "од {{amount}}"
   },
   "history": {
     "title": "Историја",
@@ -279,7 +284,8 @@
     "editHint": "Двоен допир за уредување",
     "deleteHint": "Двоен допир за бришење",
     "colorOption": "Боја {{n}}",
-    "iconOption": "Икона {{n}}"
+    "iconOption": "Икона {{n}}",
+    "showBudgetHint": "Го прикажува нејзиниот буџет"
   },
   "error": {
     "title": "Нешто тргна наопаку",

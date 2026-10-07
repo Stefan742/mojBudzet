@@ -18,7 +18,12 @@
     "income": "Income",
     "expenses": "Expenses",
     "saved": "Saved",
-    "byCategory": "BY CATEGORY"
+    "byCategory": "BY CATEGORY",
+    "tapHint": "Tap a category to see its budget",
+    "noBudget": "No budget set",
+    "budgetLeft": "{{amount}} left · {{pct}}%",
+    "budgetOver": "Over budget by {{amount}}",
+    "ofLimit": "of {{amount}}"
   },
   "history": {
     "title": "History",
@@ -279,7 +284,8 @@
     "editHint": "Double-tap to edit",
     "deleteHint": "Double-tap to delete",
     "colorOption": "Colour {{n}}",
-    "iconOption": "Icon {{n}}"
+    "iconOption": "Icon {{n}}",
+    "showBudgetHint": "Shows its budget"
   },
   "error": {
     "title": "Something went wrong",
