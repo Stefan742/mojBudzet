@@ -74,7 +74,8 @@
     "autoSuggest": "Автоматски предлог за категорија",
     "noCategoryHint": "Ќе се зачува без категорија.",
     "merchantLabel": "Продавач",
-    "autoSuggestShort": "Автоматска категорија"
+    "autoSuggestShort": "Автоматска категорија",
+    "saveShort": "Зачувај"
   },
   "budget": {
     "title": "Буџет",

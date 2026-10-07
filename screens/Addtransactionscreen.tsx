@@ -9,7 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  Pressable,
+  Keyboard,
+  InputAccessoryView,
 } from "react-native";
+import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
 import { showToast } from "../store/session";
@@ -31,6 +35,8 @@ import { GUTTER, ROW_MIN, SECTION_GAP, inputType, money, space, type } from "@/c
 
 const NONE = "__none__";
 const AI_DEBOUNCE_MS = 400;
+/** iOS keyboard toolbar that carries the Save button (see the form below). */
+const ACCESSORY_ID = "add-transaction-save";
 
 export default function AddTransactionScreen() {
   const { t } = useTranslation();
@@ -57,6 +63,7 @@ export default function AddTransactionScreen() {
   // after the form was saved or the screen unmounted.
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestRef  = useRef(0);
+  const amountRef   = useRef<TextInput>(null);
 
   const cancelSuggestion = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -150,6 +157,7 @@ export default function AddTransactionScreen() {
     setCategoryId(undefined);
     setSubcategoryId(undefined);
     setUserPicked(false);
+    Keyboard.dismiss();
     haptics.success();
     showToast(t("add.saved"));
   };
@@ -170,6 +178,16 @@ export default function AddTransactionScreen() {
       keyboardDismissMode="interactive"
       showsVerticalScrollIndicator={false}
     >
+      {/* Kind first: it decides what the amount means. */}
+      <SegmentedControl
+        options={[
+          { value: TransactionKind.EXPENSE, label: t("add.expense") },
+          { value: TransactionKind.INCOME, label: t("add.income") },
+        ]}
+        value={kind}
+        onChange={setKind}
+      />
+
       <Section title={t("add.sections.transaction")} footer={amount.errorText} footerColor={colors.destructive}>
         <TextInput
           style={[inputType(type.body), styles.input, { color: colors.text }]}
@@ -178,33 +196,31 @@ export default function AddTransactionScreen() {
           value={merchant}
           onChangeText={handleMerchantChange}
           returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => amountRef.current?.focus()}
+          inputAccessoryViewID={ACCESSORY_ID}
           accessibilityLabel={t("add.merchantLabel")}
         />
         <Separator />
         <View style={styles.amountRow}>
           <TextInput
+            ref={amountRef}
             style={[inputType(type.title2), money, styles.amountInput, { color: colors.text }]}
             placeholder={t("add.amount")}
             placeholderTextColor={colors.placeholder}
             value={amount.text}
             onChangeText={amount.onChangeText}
             keyboardType="number-pad"
+            // Android's number pad has a Done key; iOS uses the toolbar below.
+            returnKeyType="done"
+            onSubmitEditing={() => { if (canSave) save(); }}
+            inputAccessoryViewID={ACCESSORY_ID}
             accessibilityLabel={t("add.amount")}
           />
           <Text style={[type.body, { color: colors.textSecondary }]}>{currency}</Text>
         </View>
         <Separator />
         <DateField label={t("history.date")} value={date} onChange={setDate} />
-        <Separator />
-        <SegmentedControl
-          style={styles.segmented}
-          options={[
-            { value: TransactionKind.EXPENSE, label: t("add.expense") },
-            { value: TransactionKind.INCOME, label: t("add.income") },
-          ]}
-          value={kind}
-          onChange={setKind}
-        />
       </Section>
 
       {/* The suggestion is the selected chip and can be corrected directly (U-8). */}
@@ -262,19 +278,58 @@ export default function AddTransactionScreen() {
           value={note}
           onChangeText={handleNoteChange}
           multiline
+          inputAccessoryViewID={ACCESSORY_ID}
           accessibilityLabel={t("add.sections.note")}
         />
       </Section>
-
-      {/* Save, after everything it saves (U-8). */}
-      <Button title={t("add.saveTransaction")} icon="check" onPress={save} disabled={!canSave} />
     </ScrollView>
+  );
+
+  // Save is always one tap away, never below the fold: in the navigation bar
+  // (the iOS place for a form's confirming action) and, while typing on iOS,
+  // in a toolbar on top of the keyboard.
+  const header = (
+    <Stack.Screen
+      options={{
+        headerRight: () => (
+          <Pressable
+            onPress={save}
+            disabled={!canSave}
+            hitSlop={8}
+            style={styles.headerButton}
+            accessibilityRole="button"
+            accessibilityLabel={t("add.saveTransaction")}
+            accessibilityState={{ disabled: !canSave }}
+          >
+            <Text style={[type.headline, { color: canSave ? colors.accent : colors.placeholder }]}>
+              {t("add.saveShort")}
+            </Text>
+          </Pressable>
+        ),
+      }}
+    />
   );
 
   // iOS adjusts the scroll view for the keyboard itself, which keeps it the
   // screen's first child (needed for the collapsing large title).
-  return Platform.OS === "ios" ? form : (
-    <KeyboardAvoidingView style={styles.flex} behavior="padding">{form}</KeyboardAvoidingView>
+  if (Platform.OS === "ios") {
+    return (
+      <>
+        {header}
+        {form}
+        <InputAccessoryView nativeID={ACCESSORY_ID} backgroundColor={colors.background}>
+          <View style={styles.accessory}>
+            <Button title={t("add.saveTransaction")} icon="check" onPress={save} disabled={!canSave} />
+          </View>
+        </InputAccessoryView>
+      </>
+    );
+  }
+  return (
+    <>
+      {header}
+      <KeyboardAvoidingView style={styles.flex} behavior="padding">{form}</KeyboardAvoidingView>
+    </>
   );
 }
 
@@ -285,7 +340,8 @@ const styles = StyleSheet.create({
   note:        { minHeight: 88, textAlignVertical: "top" },
   amountRow:   { flexDirection: "row", alignItems: "center", gap: space[2], paddingHorizontal: space[4], minHeight: ROW_MIN + 12 },
   amountInput: { flex: 1, minWidth: 0, paddingVertical: space[2] },
-  segmented:   { margin: space[3] },
+  headerButton: { paddingHorizontal: space[2], minHeight: 36, justifyContent: "center" },
+  accessory:   { paddingHorizontal: GUTTER, paddingVertical: space[2] },
   switchRow:   { flexDirection: "row", alignItems: "center", gap: space[3], paddingLeft: space[4], paddingRight: space[3], paddingVertical: space[1] + 2, minHeight: ROW_MIN + 8 },
   switchLabel: { flex: 1 },
   switchSlot:  { width: 64, height: 40, alignItems: "center", justifyContent: "center" },
