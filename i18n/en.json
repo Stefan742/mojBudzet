@@ -40,7 +40,8 @@
     "sections": {
       "basic": "BASIC",
       "category": "CATEGORY",
-      "note": "NOTE"
+      "note": "NOTE",
+      "source": "SOURCE"
     },
     "savedToVault": "Moved to the vault",
     "savedToGoal": "Saved for: {{name}}",
@@ -69,13 +70,17 @@
       "categorization": "CATEGORIZATION",
       "note": "NOTE",
       "category": "Category",
-      "subcategory": "Subcategory"
+      "subcategory": "Subcategory",
+      "source": "SOURCE"
     },
     "autoSuggest": "Suggest a category automatically",
     "noCategoryHint": "Will be saved without a category.",
     "merchantLabel": "Merchant",
     "autoSuggestShort": "Auto category",
-    "saveShort": "Save"
+    "saveShort": "Save",
+    "source": "Source",
+    "payer": "From (e.g. employer, client)",
+    "payerLabel": "From"
   },
   "budget": {
     "title": "Budget",
@@ -320,5 +325,13 @@
         "body": "If the app ever starts using data differently, this page will be updated before that happens."
       }
     }
+  },
+  "incomeTypes": {
+    "salary": "Salary",
+    "freelance": "Freelance",
+    "pension": "Pension",
+    "gift": "Gift",
+    "refund": "Refund",
+    "other": "Other"
   }
 }

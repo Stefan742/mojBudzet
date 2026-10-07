@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppStore } from "../store/useAppStore";
 import { findCategory, findSubcategory, transactionMonth } from "../store/selectors";
-import { Transaction, TransactionKind, TransactionSource, categoryLabel } from "../models";
+import { INCOME_TYPES, Transaction, TransactionKind, TransactionSource, categoryLabel, isIncomeType } from "../models";
 import { formatMoney } from "../utils/money";
 import { formatDate, formatMonthWide, monthStart } from "../utils/dates";
 import { haptics } from "../utils/haptics";
@@ -64,13 +64,20 @@ export default function HistoryScreen() {
 
   const query = search.trim().toLowerCase();
 
+  // Income shows its source; everything else its category and subcategory.
+  const tagsOf = (tx: Transaction) => {
+    if (tx.kind === TransactionKind.INCOME) return isIncomeType(tx.incomeType) ? t(`incomeTypes.${tx.incomeType}`) : "";
+    const cat = findCategory(categories, tx.categoryId);
+    const sub = findSubcategory(categories, tx.categoryId, tx.subcategoryId);
+    return [cat && categoryLabel(cat, t), sub && categoryLabel(sub, t)].filter(Boolean).join(" · ");
+  };
+
   // Newest first, grouped by month, filtered by the search field.
   const sections = useMemo(() => {
     const sorted = [...transactions].sort((a, b) => b.date.localeCompare(a.date));
     const matches = query
       ? sorted.filter((tx) => {
-          const cat = findCategory(categories, tx.categoryId);
-          return [rowTitle(tx), tx.note ?? "", cat ? categoryLabel(cat, t) : ""].some((f) => f.toLowerCase().includes(query));
+          return [rowTitle(tx), tx.note ?? "", tagsOf(tx)].some((f) => f.toLowerCase().includes(query));
         })
       : sorted;
     const byMonth = new Map<string, Transaction[]>();
@@ -97,13 +104,12 @@ export default function HistoryScreen() {
   };
 
   const renderItem = ({ item: tx, index, section }: { item: Transaction; index: number; section: { data: Transaction[] } }) => {
-    const cat = findCategory(categories, tx.categoryId);
-    const sub = findSubcategory(categories, tx.categoryId, tx.subcategoryId);
     const isSavings = tx.kind === TransactionKind.SAVINGS;
     const isIncome = tx.kind === TransactionKind.INCOME;
+    const cat = isIncome ? undefined : findCategory(categories, tx.categoryId);
     const amountText = `${isIncome ? "+" : "−"}${formatMoney(tx.amount, currency)}`;
     const dateText = formatDate(tx.date, i18n.language);
-    const tags = [cat && categoryLabel(cat, t), sub && categoryLabel(sub, t)].filter(Boolean).join(" · ");
+    const tags = tagsOf(tx);
     const catColor = cat ? dataColor(cat.colorHex, isDark) : colors.textSecondary;
     const first = index === 0;
     const last = index === section.data.length - 1;
@@ -117,9 +123,11 @@ export default function HistoryScreen() {
           accessibilityLabel={[rowTitle(tx), tags, dateText, amountText].filter(Boolean).join(", ")}
           accessibilityHint={isSavings ? t("a11y.deleteHint") : t("a11y.editHint")}
         >
-          <View style={[styles.tile, { backgroundColor: isSavings ? colors.vaultBg : cat ? tint(catColor, "soft") : colors.fill }]}>
+          <View style={[styles.tile, { backgroundColor: isSavings ? colors.vaultBg : isIncome ? colors.successBg : cat ? tint(catColor, "soft") : colors.fill }]}>
             {isSavings ? (
               <Icon name="vault" size={16} color={colors.vault} />
+            ) : isIncome ? (
+              <Icon name="income" size={16} color={colors.success} />
             ) : (
               <CategoryIcon iconName={cat?.iconName ?? "receipt-outline"} size={18} color={catColor} />
             )}
@@ -305,33 +313,49 @@ function TransactionEditorModal({ transaction, onClose, onSave, onDelete }: Edit
             />
           </Section>
 
-          <Section title={t("history.sections.category")}>
-            <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("history.category")}</Text>
-            <ChipRow
-              accessibilityLabel={t("history.category")}
-              chips={[
-                { key: NONE, label: t("history.without") },
-                ...categories.map((c) => ({ key: c.id, label: categoryLabel(c, t), color: c.colorHex })),
-              ]}
-              selectedKey={tx.categoryId ?? NONE}
-              onSelect={(key) => setTx({ ...tx, categoryId: key === NONE ? undefined : key, subcategoryId: undefined })}
-            />
-            {selectedCat && selectedCat.subcategories.length > 0 && (
-              <>
-                <Separator />
-                <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("history.subcategory")}</Text>
+          {tx.kind === TransactionKind.INCOME ? (
+            <Section title={t("history.sections.source")}>
+              <View style={styles.sourceChips}>
                 <ChipRow
-                  accessibilityLabel={t("history.subcategory")}
+                  accessibilityLabel={t("add.source")}
                   chips={[
                     { key: NONE, label: t("history.without") },
-                    ...selectedCat.subcategories.map((s) => ({ key: s.id, label: categoryLabel(s, t) })),
+                    ...INCOME_TYPES.map((key) => ({ key, label: t(`incomeTypes.${key}`) })),
                   ]}
-                  selectedKey={tx.subcategoryId ?? NONE}
-                  onSelect={(key) => setTx({ ...tx, subcategoryId: key === NONE ? undefined : key })}
+                  selectedKey={isIncomeType(tx.incomeType) ? tx.incomeType : NONE}
+                  onSelect={(key) => setTx({ ...tx, incomeType: isIncomeType(key) ? key : undefined })}
                 />
-              </>
-            )}
-          </Section>
+              </View>
+            </Section>
+          ) : (
+            <Section title={t("history.sections.category")}>
+              <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("history.category")}</Text>
+              <ChipRow
+                accessibilityLabel={t("history.category")}
+                chips={[
+                  { key: NONE, label: t("history.without") },
+                  ...categories.map((c) => ({ key: c.id, label: categoryLabel(c, t), color: c.colorHex })),
+                ]}
+                selectedKey={tx.categoryId ?? NONE}
+                onSelect={(key) => setTx({ ...tx, categoryId: key === NONE ? undefined : key, subcategoryId: undefined })}
+              />
+              {selectedCat && selectedCat.subcategories.length > 0 && (
+                <>
+                  <Separator />
+                  <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("history.subcategory")}</Text>
+                  <ChipRow
+                    accessibilityLabel={t("history.subcategory")}
+                    chips={[
+                      { key: NONE, label: t("history.without") },
+                      ...selectedCat.subcategories.map((s) => ({ key: s.id, label: categoryLabel(s, t) })),
+                    ]}
+                    selectedKey={tx.subcategoryId ?? NONE}
+                    onSelect={(key) => setTx({ ...tx, subcategoryId: key === NONE ? undefined : key })}
+                  />
+                </>
+              )}
+            </Section>
+          )}
 
           <Section title={t("history.sections.note")}>
             <TextInput
@@ -374,5 +398,6 @@ const styles = StyleSheet.create({
   amountInput:   { flex: 1, minWidth: 0, textAlign: "right", paddingVertical: space[3] },
   segmented:     { margin: space[3] },
   pickerLabel:   { paddingHorizontal: space[4], paddingTop: space[3], paddingBottom: space[1] },
+  sourceChips:   { paddingTop: space[2] },
   deleteRow:     { alignItems: "center", justifyContent: "center", minHeight: ROW_MIN + 4 },
 });

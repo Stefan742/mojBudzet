@@ -9,6 +9,7 @@ import {
   SavingsGoal,
   monthKey,
   withIncomeFrom,
+  normalizeTransaction,
 } from "../models";
 import { defaultCategories } from "../models/Category";
 import {
@@ -120,12 +121,12 @@ export const useAppStore = create<AppStoreState>()(
         })),
 
       addTransaction: (t) =>
-        set((s) => ({ transactions: [{ ...t, amount: Math.round(t.amount) }, ...s.transactions] })),
+        set((s) => ({ transactions: [normalizeTransaction(t), ...s.transactions] })),
 
       updateTransaction: (t) =>
         set((s) => ({
           transactions: s.transactions.map((x) =>
-            x.id === t.id ? { ...t, amount: Math.round(t.amount) } : x
+            x.id === t.id ? normalizeTransaction(t) : x
           ),
         })),
 

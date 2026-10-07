@@ -137,3 +137,24 @@ describe("persisted through the sharded storage", () => {
     expect(persistedSnapshot().vaultAmount).toBe(70);
   });
 });
+
+describe("income has a source, expenses have categories", () => {
+  const base = { date: new Date().toISOString(), merchant: "x", amount: 100, note: "", source: "Рачно" as const };
+
+  it("drops a category from income and keeps its source", () => {
+    store().addTransaction({ ...base, id: "i", kind: TransactionKind.INCOME, incomeType: "salary", categoryId: "cat-needs", subcategoryId: "sub-food" });
+    const tx = store().transactions.find((t) => t.id === "i")!;
+    expect(tx.incomeType).toBe("salary");
+    expect(tx.categoryId).toBeUndefined();
+    expect(tx.subcategoryId).toBeUndefined();
+  });
+
+  it("drops the source when an income is edited into an expense", () => {
+    store().addTransaction({ ...base, id: "e", kind: TransactionKind.INCOME, incomeType: "gift" });
+    const tx = store().transactions.find((t) => t.id === "e")!;
+    store().updateTransaction({ ...tx, kind: TransactionKind.EXPENSE, categoryId: "cat-needs" });
+    const edited = store().transactions.find((t) => t.id === "e")!;
+    expect(edited.incomeType).toBeUndefined();
+    expect(edited.categoryId).toBe("cat-needs");
+  });
+});

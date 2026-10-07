@@ -17,7 +17,7 @@ import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
 import { showToast } from "../store/session";
-import { TransactionKind, categoryLabel } from "../models";
+import { INCOME_TYPES, IncomeType, TransactionKind, categoryLabel } from "../models";
 import { findCategory } from "../store/selectors";
 import { useMLCategorizer } from "../services/categorizer/useMLCategorizer";
 import { v4 as uuid } from "uuid";
@@ -62,6 +62,7 @@ export default function AddTransactionScreen() {
   const [note, setNote]                     = useState("");
   const [categoryId, setCategoryId]         = useState<string | undefined>();
   const [subcategoryId, setSubcategoryId]   = useState<string | undefined>();
+  const [incomeType, setIncomeType]         = useState<IncomeType | undefined>();
   const [autoSuggest, setAutoSuggest]       = useState(true);
   // Once the user picks a category by hand, suggestions no longer overwrite it.
   const [userPicked, setUserPicked]         = useState(false);
@@ -85,8 +86,9 @@ export default function AddTransactionScreen() {
     requestRef.current += 1;
   }, []);
 
-  const scheduleSuggestion = (newMerchant: string, newNote: string) => {
-    if (!autoSuggest || !isReady || userPicked) return;
+  // Categories are for spending; income gets a source instead, picked by hand.
+  const scheduleSuggestion = (newMerchant: string, newNote: string, forKind = kind) => {
+    if (forKind !== TransactionKind.EXPENSE || !autoSuggest || !isReady || userPicked) return;
     cancelSuggestion();
     if (!newMerchant.trim()) return;
     const request = requestRef.current;
@@ -138,6 +140,17 @@ export default function AddTransactionScreen() {
     if (subId && merchant.trim()) correct(merchant, note, subId);
   };
 
+  const changeKind = (next: TransactionKind) => {
+    setKind(next);
+    if (next === TransactionKind.EXPENSE) scheduleSuggestion(merchant, note, next);
+    else cancelSuggestion();
+  };
+
+  const pickIncomeType = (key: string) => {
+    setIncomeType(key === NONE ? undefined : (key as IncomeType));
+  };
+
+  const isIncome = kind === TransactionKind.INCOME;
   const canSave = merchant.trim().length > 0 && amount.text.trim().length > 0;
 
   const save = () => {
@@ -153,8 +166,10 @@ export default function AddTransactionScreen() {
       merchant: merchant.trim(),
       amount: value,
       kind,
+      // The store drops whichever of these does not belong to the kind.
       categoryId,
       subcategoryId,
+      incomeType,
       note,
       source: "Рачно",
     });
@@ -164,6 +179,7 @@ export default function AddTransactionScreen() {
     setDate(new Date());
     setCategoryId(undefined);
     setSubcategoryId(undefined);
+    setIncomeType(undefined);
     setUserPicked(false);
     Keyboard.dismiss();
     haptics.success();
@@ -193,13 +209,13 @@ export default function AddTransactionScreen() {
           { value: TransactionKind.INCOME, label: t("add.income") },
         ]}
         value={kind}
-        onChange={setKind}
+        onChange={changeKind}
       />
 
       <Section title={t("add.sections.transaction")} footer={amount.errorText} footerColor={colors.destructive}>
         <TextInput
           style={[inputType(type.body), styles.input, { color: colors.text }]}
-          placeholder={t("add.merchant")}
+          placeholder={isIncome ? t("add.payer") : t("add.merchant")}
           placeholderTextColor={colors.placeholder}
           value={merchant}
           onChangeText={handleMerchantChange}
@@ -207,7 +223,7 @@ export default function AddTransactionScreen() {
           submitBehavior="submit"
           onSubmitEditing={() => amountRef.current?.focus()}
           inputAccessoryViewID={ACCESSORY.merchant}
-          accessibilityLabel={t("add.merchantLabel")}
+          accessibilityLabel={isIncome ? t("add.payerLabel") : t("add.merchantLabel")}
         />
         <Separator />
         <View style={styles.amountRow}>
@@ -231,52 +247,68 @@ export default function AddTransactionScreen() {
         <DateField label={t("history.date")} value={date} onChange={setDate} />
       </Section>
 
-      {/* The suggestion is the selected chip and can be corrected directly (U-8). */}
-      <Section title={t("add.sections.categorization")} footer={hint}>
-        <View style={styles.switchRow}>
-          <Icon name="sparkles" size={18} color={colors.accent} />
-          <Text style={[type.body, styles.switchLabel, { color: colors.text }]} numberOfLines={1}>
-            {t("add.autoSuggestShort")}
-          </Text>
-          {isCategorizing && <ActivityIndicator size="small" color={colors.accent} />}
-          {/* Fixed slot: the iOS 26 switch is larger than the frame React Native
-              reserves for it, so centre it in a known box instead of letting it drift. */}
-          <View style={styles.switchSlot}>
-            <Switch
-              value={autoSuggest}
-              onValueChange={handleAutoSuggest}
-              trackColor={{ true: colors.success }}
-              accessibilityLabel={t("add.autoSuggest")}
+      {isIncome ? (
+        <Section title={t("add.sections.source")}>
+          <View style={styles.sourceChips}>
+            <ChipRow
+              accessibilityLabel={t("add.source")}
+              chips={[
+                { key: NONE, label: t("history.without") },
+                ...INCOME_TYPES.map((key) => ({ key, label: t(`incomeTypes.${key}`) })),
+              ]}
+              selectedKey={incomeType ?? NONE}
+              onSelect={pickIncomeType}
             />
           </View>
-        </View>
-        <Separator />
-        <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("add.sections.category")}</Text>
-        <ChipRow
-          accessibilityLabel={t("add.sections.category")}
-          chips={[
-            { key: NONE, label: t("history.without") },
-            ...categories.map((c) => ({ key: c.id, label: categoryLabel(c, t), color: c.colorHex })),
-          ]}
-          selectedKey={categoryId ?? NONE}
-          onSelect={pickCategory}
-        />
-        {selectedCat && selectedCat.subcategories.length > 0 && (
-          <>
-            <Separator />
-            <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("add.sections.subcategory")}</Text>
-            <ChipRow
-              accessibilityLabel={t("add.sections.subcategory")}
-              chips={[
-                { key: NONE, label: t("add.withoutSub") },
-                ...selectedCat.subcategories.map((s) => ({ key: s.id, label: categoryLabel(s, t) })),
-              ]}
-              selectedKey={subcategoryId ?? NONE}
-              onSelect={pickSubcategory}
-            />
-          </>
-        )}
-      </Section>
+        </Section>
+      ) : (
+        // The suggestion is the selected chip and can be corrected directly (U-8).
+        <Section title={t("add.sections.categorization")} footer={hint}>
+          <View style={styles.switchRow}>
+            <Icon name="sparkles" size={18} color={colors.accent} />
+            <Text style={[type.body, styles.switchLabel, { color: colors.text }]} numberOfLines={1}>
+              {t("add.autoSuggestShort")}
+            </Text>
+            {isCategorizing && <ActivityIndicator size="small" color={colors.accent} />}
+            {/* Fixed slot: the iOS 26 switch is larger than the frame React Native
+                reserves for it, so centre it in a known box instead of letting it drift. */}
+            <View style={styles.switchSlot}>
+              <Switch
+                value={autoSuggest}
+                onValueChange={handleAutoSuggest}
+                trackColor={{ true: colors.success }}
+                accessibilityLabel={t("add.autoSuggest")}
+              />
+            </View>
+          </View>
+          <Separator />
+          <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("add.sections.category")}</Text>
+          <ChipRow
+            accessibilityLabel={t("add.sections.category")}
+            chips={[
+              { key: NONE, label: t("history.without") },
+              ...categories.map((c) => ({ key: c.id, label: categoryLabel(c, t), color: c.colorHex })),
+            ]}
+            selectedKey={categoryId ?? NONE}
+            onSelect={pickCategory}
+          />
+          {selectedCat && selectedCat.subcategories.length > 0 && (
+            <>
+              <Separator />
+              <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("add.sections.subcategory")}</Text>
+              <ChipRow
+                accessibilityLabel={t("add.sections.subcategory")}
+                chips={[
+                  { key: NONE, label: t("add.withoutSub") },
+                  ...selectedCat.subcategories.map((s) => ({ key: s.id, label: categoryLabel(s, t) })),
+                ]}
+                selectedKey={subcategoryId ?? NONE}
+                onSelect={pickSubcategory}
+              />
+            </>
+          )}
+        </Section>
+      )}
 
       <Section title={t("add.sections.note")}>
         <TextInput
@@ -356,4 +388,5 @@ const styles = StyleSheet.create({
   switchLabel: { flex: 1 },
   switchSlot:  { width: 64, height: 40, alignItems: "center", justifyContent: "center" },
   pickerLabel: { paddingHorizontal: space[4], paddingTop: space[3], paddingBottom: space[1] },
+  sourceChips: { paddingTop: space[2] },
 });
