@@ -35,8 +35,16 @@ import { GUTTER, ROW_MIN, SECTION_GAP, inputType, money, space, type } from "@/c
 
 const NONE = "__none__";
 const AI_DEBOUNCE_MS = 400;
-/** iOS keyboard toolbar that carries the Save button (see the form below). */
-const ACCESSORY_ID = "add-transaction-save";
+/**
+ * iOS keyboard toolbars that carry the Save button, one per field: React
+ * Native (New Architecture) attaches an InputAccessoryView only to the first
+ * text input with its ID, so a shared ID left the amount pad without one.
+ */
+const ACCESSORY = {
+  merchant: "add-save-merchant",
+  amount:   "add-save-amount",
+  note:     "add-save-note",
+} as const;
 
 export default function AddTransactionScreen() {
   const { t } = useTranslation();
@@ -198,7 +206,7 @@ export default function AddTransactionScreen() {
           returnKeyType="next"
           submitBehavior="submit"
           onSubmitEditing={() => amountRef.current?.focus()}
-          inputAccessoryViewID={ACCESSORY_ID}
+          inputAccessoryViewID={ACCESSORY.merchant}
           accessibilityLabel={t("add.merchantLabel")}
         />
         <Separator />
@@ -214,7 +222,7 @@ export default function AddTransactionScreen() {
             // Android's number pad has a Done key; iOS uses the toolbar below.
             returnKeyType="done"
             onSubmitEditing={() => { if (canSave) save(); }}
-            inputAccessoryViewID={ACCESSORY_ID}
+            inputAccessoryViewID={ACCESSORY.amount}
             accessibilityLabel={t("add.amount")}
           />
           <Text style={[type.body, { color: colors.textSecondary }]}>{currency}</Text>
@@ -278,7 +286,7 @@ export default function AddTransactionScreen() {
           value={note}
           onChangeText={handleNoteChange}
           multiline
-          inputAccessoryViewID={ACCESSORY_ID}
+          inputAccessoryViewID={ACCESSORY.note}
           accessibilityLabel={t("add.sections.note")}
         />
       </Section>
@@ -317,11 +325,13 @@ export default function AddTransactionScreen() {
       <>
         {header}
         {form}
-        <InputAccessoryView nativeID={ACCESSORY_ID} backgroundColor={colors.background}>
-          <View style={styles.accessory}>
-            <Button title={t("add.saveTransaction")} icon="check" onPress={save} disabled={!canSave} />
-          </View>
-        </InputAccessoryView>
+        {Object.values(ACCESSORY).map((id) => (
+          <InputAccessoryView key={id} nativeID={id} backgroundColor={colors.background}>
+            <View style={styles.accessory}>
+              <Button title={t("add.saveTransaction")} icon="check" onPress={save} disabled={!canSave} />
+            </View>
+          </InputAccessoryView>
+        ))}
       </>
     );
   }
