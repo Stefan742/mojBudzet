@@ -112,12 +112,22 @@ function GoalCard({ goal, currency, onPress, onDelete, onAddAmount }: GoalCardPr
 
   return (
     <View style={styles.swipeWrapper}>
-      <View style={[styles.deleteBackground, { backgroundColor: colors.destructive }]}>
+      {/* Hidden until the card moves: at rest its edge would show through the
+          card's anti-aliased rounded corners as a thin red line. */}
+      <Animated.View
+        style={[
+          styles.deleteBackground,
+          {
+            backgroundColor: colors.destructive,
+            opacity: translateX.interpolate({ inputRange: [-24, 0], outputRange: [1, 0], extrapolate: "clamp" }),
+          },
+        ]}
+      >
         <Pressable style={styles.deleteAction} onPress={onDelete} accessibilityRole="button">
           <Icon name="trash" size={20} color={colors.onAccent} />
           <Text style={[type.caption, { color: colors.onAccent, fontWeight: "600" }]}>{t("savings.delete")}</Text>
         </Pressable>
-      </View>
+      </Animated.View>
 
       <Animated.View
         style={[styles.card, { backgroundColor: colors.card, transform: [{ translateX }] }]}
