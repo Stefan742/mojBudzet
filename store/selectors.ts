@@ -64,6 +64,9 @@ export const expensesByCategory = (
     .sort((a, b) => b.amount - a.amount);
 };
 
+/** Share of a budget limit at which the app starts warning (U-14). */
+export const BUDGET_WARN_AT = 0.8;
+
 export const spentInCategory = (
   transactions: Transaction[],
   categoryId: string,

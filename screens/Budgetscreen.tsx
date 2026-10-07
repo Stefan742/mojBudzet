@@ -18,7 +18,7 @@ import { showToast } from "../store/session";
 import { formatMoney } from "../utils/money";
 import { haptics } from "../utils/haptics";
 import { Category, categoryLabel, incomeForMonth, monthKey } from "../models";
-import { spentInCategory } from "../store/selectors";
+import { BUDGET_WARN_AT, spentInCategory } from "../store/selectors";
 import {
   generateBudgetSuggestion,
   BudgetSuggestion,
@@ -45,8 +45,6 @@ const BUCKET_COLOR: Record<string, string> = {
   debt:      "#AF52DE",
 };
 
-/** Share of the limit at which a row starts warning (U-14). */
-const WARN_AT = 0.8;
 const TILE = 36;
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -255,7 +253,7 @@ function BudgetRow({ category, limit }: { category: Category; limit: number }) {
 
   const color    = dataColor(category.colorHex, isDark);
   const ratio    = limit > 0 ? spent / limit : 0;
-  const status   = ratio >= 1 ? colors.destructive : ratio >= WARN_AT ? colors.warning : color;
+  const status   = ratio >= 1 ? colors.destructive : ratio >= BUDGET_WARN_AT ? colors.warning : color;
   const name     = categoryLabel(category, t);
 
   const handleSet = () => {
@@ -285,7 +283,7 @@ function BudgetRow({ category, limit }: { category: Category; limit: number }) {
           </Text>
         </View>
         {limit > 0 && (
-          <Text style={[type.headline, money, { color: ratio >= WARN_AT ? status : colors.textSecondary }]}>
+          <Text style={[type.headline, money, { color: ratio >= BUDGET_WARN_AT ? status : colors.textSecondary }]}>
             {Math.round(ratio * 100)}%
           </Text>
         )}
@@ -294,7 +292,7 @@ function BudgetRow({ category, limit }: { category: Category; limit: number }) {
       {limit > 0 && <ProgressBar progress={ratio} color={status} />}
 
       {/* The warning the footer promises (U-14). */}
-      {limit > 0 && ratio >= WARN_AT && (
+      {limit > 0 && ratio >= BUDGET_WARN_AT && (
         <View style={styles.warningRow}>
           <Icon name={ratio >= 1 ? "alert" : "warning"} size={14} color={status} />
           <Text style={[type.footnote, styles.flex, { color: colors.text }]}>
