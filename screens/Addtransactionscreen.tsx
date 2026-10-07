@@ -1,31 +1,33 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Animated,
   KeyboardAvoidingView,
+  Platform,
   Switch,
-  AccessibilityInfo,
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
+import { showToast } from "../store/session";
 import { TransactionKind, categoryLabel } from "../models";
 import { findCategory } from "../store/selectors";
 import { useMLCategorizer } from "../services/categorizer/useMLCategorizer";
 import { v4 as uuid } from "uuid";
+import { haptics } from "../utils/haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { useAmountField } from "@/hooks/useAmountField";
 import { DateField } from "@/components/DateField";
 import { ChipRow } from "@/components/ChipRow";
+import { Icon } from "@/components/Icon";
+import { Button } from "@/components/ui/Button";
+import { Section, Separator } from "@/components/ui/Section";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { MARKET_DATASET_CSV } from "../assets/datasets/market_dataset";
-import { MIN_TOUCH, useTabBarSpace } from "@/constants/layout";
+import { GUTTER, ROW_MIN, SECTION_GAP, inputType, money, space, type } from "@/constants/design";
 
 const NONE = "__none__";
 const AI_DEBOUNCE_MS = 400;
@@ -33,8 +35,6 @@ const AI_DEBOUNCE_MS = 400;
 export default function AddTransactionScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
-  const bottomSpace = useTabBarSpace();
   const addTransaction = useAppStore((s) => s.addTransaction);
   const categories     = useAppStore((s) => s.categories);
   const currency       = t("common.currency");
@@ -52,7 +52,6 @@ export default function AddTransactionScreen() {
   // Once the user picks a category by hand, suggestions no longer overwrite it.
   const [userPicked, setUserPicked]         = useState(false);
   const [isCategorizing, setIsCategorizing] = useState(false);
-  const [toastAnim]                         = useState(() => new Animated.Value(0));
 
   // B-13: only the latest request may apply its result, and nothing applies
   // after the form was saved or the screen unmounted.
@@ -128,7 +127,10 @@ export default function AddTransactionScreen() {
 
   const save = () => {
     const value = amount.parse();
-    if (value === null || !merchant.trim()) return;
+    if (value === null || !merchant.trim()) {
+      haptics.error();
+      return;
+    }
     cancelSuggestion();
     addTransaction({
       id: uuid(),
@@ -148,237 +150,144 @@ export default function AddTransactionScreen() {
     setCategoryId(undefined);
     setSubcategoryId(undefined);
     setUserPicked(false);
-    AccessibilityInfo.announceForAccessibility(t("add.saved"));
-    Animated.sequence([
-      Animated.timing(toastAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
-      Animated.delay(1200),
-      Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
-    ]).start();
+    haptics.success();
+    showToast(t("add.saved"));
   };
 
   const selectedCat = findCategory(categories, categoryId);
-  const kinds = [
-    { label: t("add.expense"), value: TransactionKind.EXPENSE },
-    { label: t("add.income"),  value: TransactionKind.INCOME  },
-  ];
+  const hint =
+    !categoryId && kind === TransactionKind.EXPENSE
+      ? autoSuggest && !merchant.trim() ? t("add.aiHint") : t("add.noCategoryHint")
+      : null;
 
-  return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: colors.text }]} accessibilityRole="header">
-            {t("add.title")}
-          </Text>
+  const form = (
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      automaticallyAdjustKeyboardInsets
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      showsVerticalScrollIndicator={false}
+    >
+      <Section title={t("add.sections.transaction")} footer={amount.errorText} footerColor={colors.destructive}>
+        <TextInput
+          style={[inputType(type.body), styles.input, { color: colors.text }]}
+          placeholder={t("add.merchant")}
+          placeholderTextColor={colors.placeholder}
+          value={merchant}
+          onChangeText={handleMerchantChange}
+          returnKeyType="next"
+          accessibilityLabel={t("add.merchantLabel")}
+        />
+        <Separator />
+        <View style={styles.amountRow}>
+          <TextInput
+            style={[inputType(type.title2), money, styles.amountInput, { color: colors.text }]}
+            placeholder={t("add.amount")}
+            placeholderTextColor={colors.placeholder}
+            value={amount.text}
+            onChangeText={amount.onChangeText}
+            keyboardType="number-pad"
+            accessibilityLabel={t("add.amount")}
+          />
+          <Text style={[type.body, { color: colors.textSecondary }]}>{currency}</Text>
         </View>
-
-        <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: bottomSpace }]}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Transaction card */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
-              {t("add.sections.transaction")}
-            </Text>
-            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder={t("add.merchant")}
-                placeholderTextColor={colors.textTertiary}
-                value={merchant}
-                onChangeText={handleMerchantChange}
-                returnKeyType="next"
-                accessibilityLabel={t("add.merchantLabel")}
-              />
-              <View style={[styles.separator, { backgroundColor: colors.separator }]} />
-              <View style={styles.row}>
-                <TextInput
-                  style={[styles.input, { flex: 1, color: colors.text }]}
-                  placeholder={t("add.amount")}
-                  placeholderTextColor={colors.textTertiary}
-                  value={amount.text}
-                  onChangeText={amount.onChangeText}
-                  keyboardType="number-pad"
-                  accessibilityLabel={t("add.amount")}
-                />
-                <Text style={[styles.currency, { color: colors.textSecondary }]}>{currency}</Text>
-              </View>
-              {amount.errorText && (
-                <Text style={[styles.fieldError, { color: colors.destructive }]}>{amount.errorText}</Text>
-              )}
-              <View style={[styles.separator, { backgroundColor: colors.separator }]} />
-              <DateField label={t("history.date")} value={date} onChange={setDate} />
-              <View style={[styles.separator, { backgroundColor: colors.separator }]} />
-              <View style={[styles.segmentContainer, { backgroundColor: colors.inputBg }]} accessibilityRole="radiogroup">
-                {kinds.map((k) => {
-                  const selected = kind === k.value;
-                  return (
-                    <TouchableOpacity
-                      key={k.value}
-                      style={[styles.segment, selected && { backgroundColor: colors.accent }]}
-                      onPress={() => setKind(k.value)}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected }}
-                    >
-                      <Text style={[styles.segmentText, { color: selected ? colors.onAccent : colors.textSecondary }]}>
-                        {k.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
-
-          {/* Categorization: the suggestion is shown as the selected chip and can be corrected directly (U-8). */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
-              {t("add.sections.categorization")}
-            </Text>
-            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
-              <View style={styles.switchRow}>
-                <Ionicons name="sparkles" size={16} color={colors.accent} />
-                <Text style={[styles.switchLabel, { color: colors.text }]} numberOfLines={1}>
-                  {t("add.autoSuggestShort")}
-                </Text>
-                {isCategorizing && <ActivityIndicator size="small" color={colors.accent} />}
-                {/* Fixed slot: the iOS 26 switch is larger than the frame React Native
-                    reserves for it, so centre it in a known box instead of letting it drift. */}
-                <View style={styles.switchSlot}>
-                  <Switch
-                    value={autoSuggest}
-                    onValueChange={handleAutoSuggest}
-                    trackColor={{ true: colors.accent }}
-                    accessibilityLabel={t("add.autoSuggest")}
-                  />
-                </View>
-              </View>
-              <View style={[styles.separator, { backgroundColor: colors.separator }]} />
-              <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>{t("add.sections.category")}</Text>
-              <ChipRow
-                accessibilityLabel={t("add.sections.category")}
-                chips={[
-                  { key: NONE, label: t("history.without") },
-                  ...categories.map((c) => ({ key: c.id, label: categoryLabel(c, t), color: c.colorHex })),
-                ]}
-                selectedKey={categoryId ?? NONE}
-                onSelect={pickCategory}
-              />
-              {selectedCat && selectedCat.subcategories.length > 0 && (
-                <>
-                  <View style={[styles.separator, { backgroundColor: colors.separator }]} />
-                  <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>{t("add.sections.subcategory")}</Text>
-                  <ChipRow
-                    accessibilityLabel={t("add.sections.subcategory")}
-                    chips={[
-                      { key: NONE, label: t("add.withoutSub") },
-                      ...selectedCat.subcategories.map((s) => ({ key: s.id, label: categoryLabel(s, t) })),
-                    ]}
-                    selectedKey={subcategoryId ?? NONE}
-                    onSelect={pickSubcategory}
-                  />
-                </>
-              )}
-              {!categoryId && kind === TransactionKind.EXPENSE && (
-                <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                  {autoSuggest && !merchant.trim() ? t("add.aiHint") : t("add.noCategoryHint")}
-                </Text>
-              )}
-            </View>
-          </View>
-
-          {/* Note */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
-              {t("add.sections.note")}
-            </Text>
-            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
-              <TextInput
-                style={[styles.input, { minHeight: 60, color: colors.text }]}
-                placeholder={t("history.optional")}
-                placeholderTextColor={colors.textTertiary}
-                value={note}
-                onChangeText={handleNoteChange}
-                multiline
-                accessibilityLabel={t("add.sections.note")}
-              />
-            </View>
-          </View>
-
-          {/* Save, after everything it saves (U-8); clear enabled/disabled states (B-18). */}
-          <TouchableOpacity
-            style={[styles.saveButton, { backgroundColor: canSave ? colors.accent : colors.inputBg }, canSave && [styles.saveShadow, { shadowColor: colors.accent }]]}
-            onPress={save}
-            disabled={!canSave}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canSave }}
-          >
-            <Ionicons name="checkmark" size={20} color={canSave ? colors.onAccent : colors.textTertiary} />
-            <Text style={[styles.saveButtonText, { color: canSave ? colors.onAccent : colors.textTertiary }]}>
-              {t("add.saveTransaction")}
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        {/* Outside the ScrollView so it stays in view (B-19). */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.toast,
-            { top: insets.top + 8, backgroundColor: colors.text, opacity: toastAnim },
+        <Separator />
+        <DateField label={t("history.date")} value={date} onChange={setDate} />
+        <Separator />
+        <SegmentedControl
+          style={styles.segmented}
+          options={[
+            { value: TransactionKind.EXPENSE, label: t("add.expense") },
+            { value: TransactionKind.INCOME, label: t("add.income") },
           ]}
-        >
-          <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-          <Text style={[styles.toastText, { color: colors.background }]}>{t("add.saved")}</Text>
-        </Animated.View>
-      </View>
-    </KeyboardAvoidingView>
+          value={kind}
+          onChange={setKind}
+        />
+      </Section>
+
+      {/* The suggestion is the selected chip and can be corrected directly (U-8). */}
+      <Section title={t("add.sections.categorization")} footer={hint}>
+        <View style={styles.switchRow}>
+          <Icon name="sparkles" size={18} color={colors.accent} />
+          <Text style={[type.body, styles.switchLabel, { color: colors.text }]} numberOfLines={1}>
+            {t("add.autoSuggestShort")}
+          </Text>
+          {isCategorizing && <ActivityIndicator size="small" color={colors.accent} />}
+          {/* Fixed slot: the iOS 26 switch is larger than the frame React Native
+              reserves for it, so centre it in a known box instead of letting it drift. */}
+          <View style={styles.switchSlot}>
+            <Switch
+              value={autoSuggest}
+              onValueChange={handleAutoSuggest}
+              trackColor={{ true: colors.success }}
+              accessibilityLabel={t("add.autoSuggest")}
+            />
+          </View>
+        </View>
+        <Separator />
+        <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("add.sections.category")}</Text>
+        <ChipRow
+          accessibilityLabel={t("add.sections.category")}
+          chips={[
+            { key: NONE, label: t("history.without") },
+            ...categories.map((c) => ({ key: c.id, label: categoryLabel(c, t), color: c.colorHex })),
+          ]}
+          selectedKey={categoryId ?? NONE}
+          onSelect={pickCategory}
+        />
+        {selectedCat && selectedCat.subcategories.length > 0 && (
+          <>
+            <Separator />
+            <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("add.sections.subcategory")}</Text>
+            <ChipRow
+              accessibilityLabel={t("add.sections.subcategory")}
+              chips={[
+                { key: NONE, label: t("add.withoutSub") },
+                ...selectedCat.subcategories.map((s) => ({ key: s.id, label: categoryLabel(s, t) })),
+              ]}
+              selectedKey={subcategoryId ?? NONE}
+              onSelect={pickSubcategory}
+            />
+          </>
+        )}
+      </Section>
+
+      <Section title={t("add.sections.note")}>
+        <TextInput
+          style={[inputType(type.body), styles.input, styles.note, { color: colors.text }]}
+          placeholder={t("history.optional")}
+          placeholderTextColor={colors.placeholder}
+          value={note}
+          onChangeText={handleNoteChange}
+          multiline
+          accessibilityLabel={t("add.sections.note")}
+        />
+      </Section>
+
+      {/* Save, after everything it saves (U-8). */}
+      <Button title={t("add.saveTransaction")} icon="check" onPress={save} disabled={!canSave} />
+    </ScrollView>
+  );
+
+  // iOS adjusts the scroll view for the keyboard itself, which keeps it the
+  // screen's first child (needed for the collapsing large title).
+  return Platform.OS === "ios" ? form : (
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">{form}</KeyboardAvoidingView>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container:   { flex: 1 },
-  header:      { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
-  headerTitle: { fontSize: 34, fontWeight: "700", letterSpacing: 0.3 },
-  content:     { paddingHorizontal: 20, paddingTop: 16 },
-  section:     { marginBottom: 16 },
-  sectionHeader: {
-    fontSize: 12, fontWeight: "600", marginBottom: 6,
-    paddingHorizontal: 4, letterSpacing: 0.5,
-  },
-  card: {
-    borderRadius: 16, overflow: "hidden",
-    shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 3,
-  },
-  input:     { paddingHorizontal: 16, paddingVertical: 14, fontSize: 16 },
-  separator: { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
-  row:       { flexDirection: "row", alignItems: "center" },
-  currency:  { paddingRight: 16, fontSize: 15 },
-  fieldError:{ fontSize: 13, paddingHorizontal: 16, paddingBottom: 10, marginTop: -4 },
-  segmentContainer: { flexDirection: "row", margin: 10, borderRadius: 8, padding: 3 },
-  segment: {
-    flex: 1, minHeight: 36, borderRadius: 6,
-    alignItems: "center", flexDirection: "row", justifyContent: "center",
-  },
-  segmentText: { fontSize: 14, fontWeight: "500" },
-  switchRow:   { flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 16, paddingRight: 12, paddingVertical: 6, minHeight: MIN_TOUCH + 8 },
-  switchLabel: { flex: 1, fontSize: 16 },
+  flex:        { flex: 1 },
+  content:     { paddingHorizontal: GUTTER, paddingTop: space[2], paddingBottom: space[8], gap: SECTION_GAP },
+  input:       { paddingHorizontal: space[4], paddingVertical: space[3], minHeight: ROW_MIN },
+  note:        { minHeight: 88, textAlignVertical: "top" },
+  amountRow:   { flexDirection: "row", alignItems: "center", gap: space[2], paddingHorizontal: space[4], minHeight: ROW_MIN + 12 },
+  amountInput: { flex: 1, paddingVertical: space[2] },
+  segmented:   { margin: space[3] },
+  switchRow:   { flexDirection: "row", alignItems: "center", gap: space[3], paddingLeft: space[4], paddingRight: space[3], paddingVertical: space[1] + 2, minHeight: ROW_MIN + 8 },
+  switchLabel: { flex: 1 },
   switchSlot:  { width: 64, height: 40, alignItems: "center", justifyContent: "center" },
-  pickerLabel: { fontSize: 13, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 },
-  hint:        { fontSize: 13, paddingHorizontal: 16, paddingBottom: 12 },
-  saveButton: {
-    borderRadius: 14, padding: 16, alignItems: "center", marginTop: 4, marginBottom: 16,
-    flexDirection: "row", justifyContent: "center", gap: 8, minHeight: MIN_TOUCH,
-  },
-  saveShadow: { shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
-  saveButtonText: { fontSize: 17, fontWeight: "600" },
-  toast: {
-    position: "absolute", alignSelf: "center", zIndex: 100,
-    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 30,
-    flexDirection: "row", alignItems: "center", gap: 6,
-  },
-  toastText: { fontSize: 15, fontWeight: "500" },
+  pickerLabel: { paddingHorizontal: space[4], paddingTop: space[3], paddingBottom: space[1] },
 });
