@@ -1,11 +1,14 @@
 import React from "react";
-import { ScrollView, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { ScrollView, Text, Pressable, StyleSheet } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
+import { dataColor } from "@/constants/palette";
+import { corners, radius, space, type } from "@/constants/design";
+import { haptics } from "@/utils/haptics";
 
 export interface Chip {
   key: string;
   label: string;
-  /** Background when selected; defaults to the accent colour. */
+  /** Data colour (stored light value) used when selected; defaults to the accent. */
   color?: string;
 }
 
@@ -24,7 +27,7 @@ export function ChipRow({
   onSelect: (key: string) => void;
   accessibilityLabel: string;
 }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   return (
     <ScrollView
       horizontal
@@ -36,17 +39,23 @@ export function ChipRow({
     >
       {chips.map((chip) => {
         const selected = chip.key === selectedKey;
+        const fill = chip.color ? dataColor(chip.color, isDark) : colors.accent;
         return (
-          <TouchableOpacity
+          <Pressable
             key={chip.key}
-            style={[styles.chip, { backgroundColor: selected ? chip.color ?? colors.accent : colors.inputBg }]}
-            onPress={() => onSelect(chip.key)}
+            style={[styles.chip, { backgroundColor: selected ? fill : colors.fill }]}
+            onPress={() => {
+              if (!selected) haptics.selection();
+              onSelect(chip.key);
+            }}
             accessibilityRole="radio"
             accessibilityState={{ selected }}
             hitSlop={{ top: 4, bottom: 4 }}
           >
-            <Text style={[styles.text, { color: selected ? colors.onAccent : colors.text }]}>{chip.label}</Text>
-          </TouchableOpacity>
+            <Text style={[type.subheadline, { color: selected ? colors.onAccent : colors.text, fontWeight: selected ? "600" : "400" }]}>
+              {chip.label}
+            </Text>
+          </Pressable>
         );
       })}
     </ScrollView>
@@ -54,7 +63,6 @@ export function ChipRow({
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 12, paddingBottom: 12, paddingRight: 20, gap: 8 },
-  chip: { paddingHorizontal: 14, minHeight: 40, justifyContent: "center", borderRadius: 20, marginTop: 4 },
-  text: { fontSize: 14 },
+  content: { paddingHorizontal: space[4], paddingTop: space[1], paddingBottom: space[3], gap: space[2] },
+  chip: { paddingHorizontal: space[4], minHeight: 36, justifyContent: "center", ...corners(radius.pill) },
 });
