@@ -8,11 +8,11 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
 import { useSession } from "../store/session";
 import {
-  BUDGET_WARN_AT, balanceOf, expensesByCategory, leftoverOf, monthTotals, CategorySpend,
+  BUDGET_WARN_AT, balanceOf, expensesByCategory, monthTotals, pendingLeftover, CategorySpend,
 } from "../store/selectors";
 import { categoryLabel } from "../models";
 import { formatMoney } from "../utils/money";
-import { formatMonthWide, monthKey, monthStart, previousMonthKey, shiftMonth } from "../utils/dates";
+import { formatMonthWide, monthKey, monthStart, shiftMonth } from "../utils/dates";
 import { haptics } from "../utils/haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { useMotion } from "@/hooks/useMotion";
@@ -201,17 +201,16 @@ export default function OverviewScreen() {
 
   // ── Month rollover (D-1) ──────────────────────────────────────────────────
   // Nothing is written until the user chooses in the leftover sheet.
-  const needsRollover = lastRolloverMonth === undefined || lastRolloverMonth < thisMonth;
-  const leftover      = needsRollover ? leftoverOf(transactions, previousMonthKey(thisMonth), balance) : 0;
+  const leftover = pendingLeftover(lastRolloverMonth, thisMonth, transactions, balance);
 
   useEffect(() => {
-    if (!needsRollover) return;
+    if (leftover === null) return;
     if (leftover === 0) markRolloverDone(thisMonth);
     else if (!rolloverPrompted) {
       setRolloverPrompted();
       router.push("/leftover");
     }
-  }, [needsRollover, leftover, thisMonth, rolloverPrompted, markRolloverDone, setRolloverPrompted, router]);
+  }, [leftover, thisMonth, rolloverPrompted, markRolloverDone, setRolloverPrompted, router]);
 
   const handleShift = (delta: number) => {
     haptics.selection();

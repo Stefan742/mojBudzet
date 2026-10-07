@@ -4,6 +4,7 @@ import {
   expensesByCategory,
   leftoverOf,
   monthTotals,
+  pendingLeftover,
   spentInCategory,
 } from "../store/selectors";
 
@@ -75,5 +76,67 @@ describe("leftoverOf (D-1)", () => {
   it("never exceeds the balance and is never negative", () => {
     expect(leftoverOf(txs, "2026-10", 1000)).toBe(1000);
     expect(leftoverOf(txs, "2026-09", 50000)).toBe(0);
+  });
+});
+
+describe("pendingLeftover: the 1st of the month (D-1)", () => {
+  // Local dates, as the app records them.
+  const sep = (day: number) => new Date(2026, 8, day, 12);
+  const income  = (amount: number, d: Date) => tx(TransactionKind.INCOME, amount, d);
+  const expense = (amount: number, d: Date) => tx(TransactionKind.EXPENSE, amount, d);
+  const saving  = (amount: number, d: Date) => tx(TransactionKind.SAVINGS, amount, d);
+  const sepMonth = [income(60000, sep(1)), expense(30000, sep(10)), expense(11500, sep(20))];
+
+  it("asks about what last month left", () => {
+    expect(pendingLeftover("2026-09", "2026-10", sepMonth, 100000)).toBe(18500);
+  });
+
+  it("asks nothing once this month is settled", () => {
+    expect(pendingLeftover("2026-10", "2026-10", sepMonth, 100000)).toBeNull();
+  });
+
+  it("is due on the first launch after an update that added the field", () => {
+    expect(pendingLeftover(undefined, "2026-10", sepMonth, 100000)).toBe(18500);
+  });
+
+  it("settles without asking when the month was overspent", () => {
+    const over = [income(20000, sep(1)), expense(25000, sep(2))];
+    expect(pendingLeftover("2026-09", "2026-10", over, 100000)).toBe(0);
+  });
+
+  it("settles without asking when nothing happened last month", () => {
+    expect(pendingLeftover("2026-09", "2026-10", [], 100000)).toBe(0);
+  });
+
+  it("counts money already moved to savings as used", () => {
+    expect(pendingLeftover("2026-09", "2026-10", [...sepMonth, saving(8500, sep(25))], 100000)).toBe(10000);
+  });
+
+  it("never offers more than the balance holds", () => {
+    expect(pendingLeftover("2026-09", "2026-10", sepMonth, 8500)).toBe(8500);
+  });
+
+  it("offers nothing when the balance is negative", () => {
+    expect(pendingLeftover("2026-09", "2026-10", sepMonth, -11500)).toBe(0);
+  });
+
+  it("only looks at last month after months without opening the app", () => {
+    const aug = [income(40000, new Date(2026, 7, 1, 12)), expense(30000, new Date(2026, 7, 5, 12))];
+    expect(pendingLeftover("2026-07", "2026-10", [...aug, ...sepMonth], 100000)).toBe(18500);
+  });
+
+  it("crosses the year: in January it asks about December", () => {
+    const dec = [income(50000, new Date(2026, 11, 1, 12)), expense(20000, new Date(2026, 11, 31, 23, 30))];
+    expect(pendingLeftover("2026-12", "2027-01", dec, 100000)).toBe(30000);
+  });
+
+  it("counts a late-evening transaction on the last day in that month", () => {
+    const late = [income(10000, new Date(2026, 8, 30, 23, 59))];
+    expect(pendingLeftover("2026-09", "2026-10", late, 100000)).toBe(10000);
+  });
+
+  it("ignores the planned monthly income from Settings; only recorded income counts", () => {
+    // Only expenses were recorded in September.
+    expect(pendingLeftover("2026-09", "2026-10", [expense(30000, sep(10))], 100000)).toBe(0);
   });
 });

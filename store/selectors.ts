@@ -4,7 +4,7 @@
  * number), so they re-render when the data changes.
  */
 import { Category, Subcategory, Transaction, TransactionKind } from "../models";
-import { monthKey } from "../utils/dates";
+import { monthKey, previousMonthKey } from "../utils/dates";
 
 export const transactionMonth = (t: Transaction): string => monthKey(new Date(t.date));
 
@@ -88,6 +88,22 @@ export const spentInCategory = (
 export const leftoverOf = (transactions: Transaction[], month: string, balance: number): number => {
   const { income, expenses, savings } = monthTotals(transactions, month);
   return Math.max(0, Math.min(balance, income - expenses - savings));
+};
+
+/**
+ * The month-start decision (D-1). null: nothing to settle (already done this
+ * month). 0: due, but nothing was left, so it is settled without asking.
+ * Above 0: ask the user. Only the month before `thisMonth` counts; earlier
+ * unsettled months simply stayed in the balance.
+ */
+export const pendingLeftover = (
+  lastRolloverMonth: string | undefined,
+  thisMonth: string,
+  transactions: Transaction[],
+  balance: number
+): number | null => {
+  if (lastRolloverMonth !== undefined && lastRolloverMonth >= thisMonth) return null;
+  return leftoverOf(transactions, previousMonthKey(thisMonth), balance);
 };
 
 export const findCategory = (categories: Category[], id?: string): Category | undefined =>
