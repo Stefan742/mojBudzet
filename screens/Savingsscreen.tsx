@@ -727,12 +727,14 @@ function GoalEditorModal({ goal, isNew, onClose, onDelete }: GoalEditorProps) {
             <View style={[styles.editorCard, { backgroundColor: colors.card }]}>
               <View style={styles.switchRow}>
                 <Text style={[styles.switchLabel, { color: colors.text }]}>{t("savings.editor.setDeadline")}</Text>
-                <Switch
-                  value={useDeadline}
-                  onValueChange={setUseDeadline}
-                  trackColor={{ true: colors.accent }}
-                  accessibilityLabel={t("savings.editor.setDeadline")}
-                />
+                <View style={styles.switchSlot}>
+                  <Switch
+                    value={useDeadline}
+                    onValueChange={setUseDeadline}
+                    trackColor={{ true: colors.accent }}
+                    accessibilityLabel={t("savings.editor.setDeadline")}
+                  />
+                </View>
               </View>
               {useDeadline && (
                 <>
@@ -861,7 +863,9 @@ const styles = StyleSheet.create({
   colorRow: { flexDirection: "row", flexWrap: "wrap", padding: 12, gap: 10 },
   colorDot: { width: MIN_TOUCH, height: MIN_TOUCH, borderRadius: MIN_TOUCH / 2, alignItems: "center", justifyContent: "center" },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, minHeight: MIN_TOUCH + 8 },
-  switchLabel: { fontSize: 16 },
+  switchLabel: { fontSize: 16, flex: 1 },
+  // iOS 26 draws the switch larger than its reserved frame; centre it in a fixed box.
+  switchSlot: { width: 64, height: 40, alignItems: "center", justifyContent: "center" },
   deleteButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, margin: 16, padding: 16, borderRadius: 12, minHeight: MIN_TOUCH },
   deleteText: { fontSize: 16, fontWeight: "500" },
 });

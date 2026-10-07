@@ -240,14 +240,20 @@ export default function AddTransactionScreen() {
             <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
               <View style={styles.switchRow}>
                 <Ionicons name="sparkles" size={16} color={colors.accent} />
-                <Text style={[styles.switchLabel, { color: colors.text }]}>{t("add.autoSuggest")}</Text>
+                <Text style={[styles.switchLabel, { color: colors.text }]} numberOfLines={1}>
+                  {t("add.autoSuggestShort")}
+                </Text>
                 {isCategorizing && <ActivityIndicator size="small" color={colors.accent} />}
-                <Switch
-                  value={autoSuggest}
-                  onValueChange={handleAutoSuggest}
-                  trackColor={{ true: colors.accent }}
-                  accessibilityLabel={t("add.autoSuggest")}
-                />
+                {/* Fixed slot: the iOS 26 switch is larger than the frame React Native
+                    reserves for it, so centre it in a known box instead of letting it drift. */}
+                <View style={styles.switchSlot}>
+                  <Switch
+                    value={autoSuggest}
+                    onValueChange={handleAutoSuggest}
+                    trackColor={{ true: colors.accent }}
+                    accessibilityLabel={t("add.autoSuggest")}
+                  />
+                </View>
               </View>
               <View style={[styles.separator, { backgroundColor: colors.separator }]} />
               <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>{t("add.sections.category")}</Text>
@@ -358,8 +364,9 @@ const styles = StyleSheet.create({
     alignItems: "center", flexDirection: "row", justifyContent: "center",
   },
   segmentText: { fontSize: 14, fontWeight: "500" },
-  switchRow:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, minHeight: MIN_TOUCH + 8 },
-  switchLabel: { flex: 1, fontSize: 15 },
+  switchRow:   { flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 16, paddingRight: 12, paddingVertical: 6, minHeight: MIN_TOUCH + 8 },
+  switchLabel: { flex: 1, fontSize: 16 },
+  switchSlot:  { width: 64, height: 40, alignItems: "center", justifyContent: "center" },
   pickerLabel: { fontSize: 13, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 },
   hint:        { fontSize: 13, paddingHorizontal: 16, paddingBottom: 12 },
   saveButton: {
