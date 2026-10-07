@@ -134,5 +134,5 @@ const styles = StyleSheet.create({
   badge:       { width: 80, height: 80, alignItems: "center", justifyContent: "center", marginBottom: space[2], ...corners(radius.xl) },
   fields:      { gap: SECTION_GAP },
   inputRow:    { flexDirection: "row", alignItems: "center", gap: space[3], paddingHorizontal: space[4], minHeight: ROW_MIN + 24 },
-  amountInput: { flex: 1, paddingVertical: space[3] },
+  amountInput: { flex: 1, minWidth: 0, paddingVertical: space[3] },
 });

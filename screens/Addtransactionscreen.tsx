@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   input:       { paddingHorizontal: space[4], paddingVertical: space[3], minHeight: ROW_MIN },
   note:        { minHeight: 88, textAlignVertical: "top" },
   amountRow:   { flexDirection: "row", alignItems: "center", gap: space[2], paddingHorizontal: space[4], minHeight: ROW_MIN + 12 },
-  amountInput: { flex: 1, paddingVertical: space[2] },
+  amountInput: { flex: 1, minWidth: 0, paddingVertical: space[2] },
   segmented:   { margin: space[3] },
   switchRow:   { flexDirection: "row", alignItems: "center", gap: space[3], paddingLeft: space[4], paddingRight: space[3], paddingVertical: space[1] + 2, minHeight: ROW_MIN + 8 },
   switchLabel: { flex: 1 },

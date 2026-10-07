@@ -146,7 +146,7 @@ export default function VaultTransferSheet() {
 const styles = StyleSheet.create({
   content:     { padding: GUTTER, paddingTop: space[8], gap: space[3] },
   amountBox:   { flexDirection: "row", alignItems: "center", gap: space[2], paddingHorizontal: space[4], minHeight: ROW_MIN + 20, ...corners(radius.md) },
-  amountInput: { flex: 1, paddingVertical: space[2] },
+  amountInput: { flex: 1, minWidth: 0, paddingVertical: space[2] },
   allButton:   { paddingHorizontal: space[3], minHeight: 32, justifyContent: "center", ...corners(radius.pill) },
   noGoals:     { alignItems: "center", paddingVertical: space[6], gap: space[2] },
   goalRow:     { flexDirection: "row", alignItems: "center", gap: space[3], paddingHorizontal: space[4], paddingVertical: space[3] },

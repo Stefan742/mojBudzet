@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
   input:         { paddingHorizontal: space[4], paddingVertical: space[3], minHeight: ROW_MIN },
   note:          { minHeight: 88, textAlignVertical: "top" },
   editRow:       { flexDirection: "row", alignItems: "center", gap: space[2], paddingHorizontal: space[4], minHeight: ROW_MIN + 4 },
-  amountInput:   { flex: 1, textAlign: "right", paddingVertical: space[3] },
+  amountInput:   { flex: 1, minWidth: 0, textAlign: "right", paddingVertical: space[3] },
   segmented:     { margin: space[3] },
   pickerLabel:   { paddingHorizontal: space[4], paddingTop: space[3], paddingBottom: space[1] },
   deleteRow:     { alignItems: "center", justifyContent: "center", minHeight: ROW_MIN + 4 },

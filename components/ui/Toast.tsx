@@ -10,6 +10,8 @@ import { useSession } from "@/store/session";
 
 const HIDDEN_Y = -160;
 const VISIBLE_MS = 2200;
+/** About how long the standard spring takes to slide in or out. */
+const SLIDE_MS = 450;
 
 /**
  * The one toast of the app, mounted once at the root so it shows above the
@@ -29,16 +31,22 @@ export function ToastHost() {
   useEffect(() => {
     if (!toast) return;
     AccessibilityInfo.announceForAccessibility(toast.message);
+    const timers: ReturnType<typeof setTimeout>[] = [];
     if (reduceMotion) y.setValue(0);
     else {
       y.setValue(HIDDEN_Y);
       spring(y, 0, "standard").start();
     }
-    const timer = setTimeout(() => {
-      if (reduceMotion) clearToast(toast.id);
-      else spring(y, HIDDEN_Y, "standard").start(() => clearToast(toast.id));
-    }, VISIBLE_MS);
-    return () => clearTimeout(timer);
+    // Visible time is counted from when the slide-in is done, and removal is
+    // timed rather than tied to the animation's end callback, which may not
+    // fire if the spring settles short of its target.
+    timers.push(
+      setTimeout(() => {
+        if (!reduceMotion) spring(y, HIDDEN_Y, "standard").start();
+        timers.push(setTimeout(() => clearToast(toast.id), reduceMotion ? 0 : SLIDE_MS));
+      }, (reduceMotion ? 0 : SLIDE_MS) + VISIBLE_MS)
+    );
+    return () => timers.forEach(clearTimeout);
     // spring is recreated each render; a new toast id is what matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast?.id]);
