@@ -6,7 +6,7 @@ import { useAppStore } from "../store/useAppStore";
 import { showToast } from "../store/session";
 import { balanceOf, leftoverOf } from "../store/selectors";
 import { formatMoney } from "../utils/money";
-import { formatMonthWide, monthKey, monthStart, previousMonthKey } from "../utils/dates";
+import { formatMonthWide, monthEnd, monthKey, monthStart, previousMonthKey } from "../utils/dates";
 import { haptics } from "../utils/haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { Icon } from "@/components/Icon";
@@ -51,7 +51,9 @@ export default function LeftoverSheet() {
   };
 
   const save = (goalId: string | null) => {
-    saveFromBalance(leftover, goalId, "");
+    // Dated in the month the money was left from, so it is that month's
+    // saving and does not shrink this month's leftover.
+    saveFromBalance(leftover, goalId, "", monthEnd(pendingMonth));
     markRolloverDone(thisMonth);
     haptics.success();
     const goal = savingsGoals.find((g) => g.id === goalId);

@@ -18,6 +18,10 @@ export const shiftMonth = (date: Date, delta: number): Date =>
 export const previousMonthKey = (key: string): string =>
   monthKey(shiftMonth(monthStart(key), -1));
 
+/** Last second (local time) of a "YYYY-MM" month. */
+export const monthEnd = (key: string): Date =>
+  new Date(shiftMonth(monthStart(key), 1).getTime() - 1000);
+
 /** Locale for dates in the app language (not the device language). */
 export const dateLocale = (language: string): string =>
   language === "en" ? "en-GB" : "mk-MK";

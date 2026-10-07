@@ -55,9 +55,9 @@ interface Actions {
   /**
    * Moves money from the balance into savings: a goal, or the vault when
    * goalId is null. Recorded as a SAVINGS transaction, so the balance and the
-   * savings always agree.
+   * savings always agree. `date` (default now) is the month it counts in.
    */
-  saveFromBalance: (amount: number, goalId: string | null, note: string) => void;
+  saveFromBalance: (amount: number, goalId: string | null, note: string, date?: Date) => void;
   /** Moves money between pots; capped at what the vault holds. */
   transferFromVault: (amount: number, goalId: string) => void;
 
@@ -209,14 +209,14 @@ export const useAppStore = create<AppStoreState>()(
           };
         }),
 
-      saveFromBalance: (amount, goalId, note) =>
+      saveFromBalance: (amount, goalId, note, date) =>
         set((s) => {
           const value = Math.round(amount);
           if (value <= 0) return {};
           if (goalId && !s.savingsGoals.some((g) => g.id === goalId)) return {};
           const tx: Transaction = {
             id: uuid(),
-            date: new Date().toISOString(),
+            date: (date ?? new Date()).toISOString(),
             merchant: "",
             amount: value,
             kind: TransactionKind.SAVINGS,

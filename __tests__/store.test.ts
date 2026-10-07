@@ -1,7 +1,8 @@
 import { useAppStore, persistedSnapshot } from "../store/useAppStore";
-import { balanceOf, monthTotals } from "../store/selectors";
+import { balanceOf, leftoverOf, monthTotals } from "../store/selectors";
 import { buildExport } from "../store/backup";
 import { TransactionKind, monthKey } from "../models";
+import { monthEnd } from "../utils/dates";
 
 // Hoisted above the imports by babel-jest.
 jest.mock("@react-native-async-storage/async-storage", () =>
@@ -156,5 +157,22 @@ describe("income has a source, expenses have categories", () => {
     const edited = store().transactions.find((t) => t.id === "e")!;
     expect(edited.incomeType).toBeUndefined();
     expect(edited.categoryId).toBe("cat-needs");
+  });
+});
+
+describe("saving last month's leftover on the 1st (D-1)", () => {
+  const add = (id: string, kind: TransactionKind, amount: number, date: Date) =>
+    store().addTransaction({ id, kind, amount, date: date.toISOString(), merchant: "x", note: "", source: "Рачно" });
+
+  it("counts as last month's saving, so this month's leftover is not reduced", () => {
+    add("sep-in", TransactionKind.INCOME, 60000, new Date(2026, 8, 1, 12));
+    add("sep-out", TransactionKind.EXPENSE, 31500, new Date(2026, 8, 10, 12));
+    store().saveFromBalance(leftoverOf(store().transactions, "2026-09", balance()), null, "", monthEnd("2026-09"));
+    add("oct-in", TransactionKind.INCOME, 60000, new Date(2026, 9, 1, 12));
+    add("oct-out", TransactionKind.EXPENSE, 40000, new Date(2026, 9, 10, 12));
+
+    expect(store().vaultAmount).toBe(28500);
+    expect(leftoverOf(store().transactions, "2026-09", balance())).toBe(0);
+    expect(leftoverOf(store().transactions, "2026-10", balance())).toBe(20000);
   });
 });
