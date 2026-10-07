@@ -1,7 +1,7 @@
 // Must stay the first import: uuid needs the crypto.getRandomValues polyfill (S-9).
 import 'react-native-get-random-values';
 import { useSyncExternalStore } from 'react';
-import { Text, TouchableOpacity, View, StyleSheet } from 'react-native';
+import { Text, View, StyleSheet } from 'react-native';
 import {
   Stack,
   DarkTheme,
@@ -16,6 +16,9 @@ import { useAppStore } from '@/store/useAppStore';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import LoadingScreen from '@/components/LoadingScreen';
 import { ToastHost } from '@/components/ui/Toast';
+import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/Icon';
+import { space, type } from '@/constants/design';
 import { useTheme } from '@/hooks/useTheme';
 import { useLargeTitleOptions } from '@/hooks/useLargeTitleOptions';
 
@@ -79,25 +82,18 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   const { colors } = useTheme();
   return (
     <View style={[styles.errorRoot, { backgroundColor: colors.background }]}>
-      <Text style={[styles.errorTitle, { color: colors.text }]} accessibilityRole="header">
+      <Icon name="warning" size={44} color={colors.warning} />
+      <Text style={[type.title2, styles.center, { color: colors.text }]} accessibilityRole="header">
         {t('error.title')}
       </Text>
-      <Text style={[styles.errorText, { color: colors.textSecondary }]}>{t('error.body')}</Text>
-      <TouchableOpacity
-        style={[styles.errorButton, { backgroundColor: colors.accent }]}
-        onPress={retry}
-        accessibilityRole="button"
-      >
-        <Text style={[styles.errorButtonText, { color: colors.onAccent }]}>{t('error.retry')}</Text>
-      </TouchableOpacity>
+      <Text style={[type.body, styles.center, { color: colors.textSecondary }]}>{t('error.body')}</Text>
+      <Button title={t('error.retry')} onPress={retry} style={styles.retry} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  errorRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
-  errorTitle: { fontSize: 22, fontWeight: '700', textAlign: 'center' },
-  errorText: { fontSize: 15, textAlign: 'center', lineHeight: 21 },
-  errorButton: { marginTop: 12, borderRadius: 14, paddingHorizontal: 28, paddingVertical: 14, minHeight: 44 },
-  errorButtonText: { fontSize: 16, fontWeight: '600' },
+  errorRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space[8], gap: space[3] },
+  center: { textAlign: 'center' },
+  retry: { marginTop: space[3], alignSelf: 'stretch' },
 });

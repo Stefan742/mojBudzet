@@ -1,8 +1,8 @@
 import React from "react";
 import { ScrollView, Text, View, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
+import { GUTTER, space, type } from "@/constants/design";
 import { CONTACT_EMAIL } from "@/constants/app";
 
 const SECTIONS = ["data", "storage", "backups", "sharing", "suggestions", "rights", "children", "changes"] as const;
@@ -11,42 +11,38 @@ const SECTIONS = ["data", "storage", "backups", "sharing", "suggestions", "right
 export default function PrivacyScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
 
   return (
     <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
       style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+      contentContainerStyle={styles.content}
     >
-      <Text style={[styles.intro, { color: colors.text }]}>{t("privacy.intro")}</Text>
+      <Text style={[type.body, { color: colors.text }]}>{t("privacy.intro")}</Text>
       {SECTIONS.map((key) => (
         <View key={key} style={styles.section}>
-          <Text style={[styles.heading, { color: colors.text }]} accessibilityRole="header">
+          <Text style={[type.headline, { color: colors.text }]} accessibilityRole="header">
             {t(`privacy.sections.${key}.title`)}
           </Text>
-          <Text style={[styles.body, { color: colors.textSecondary }]}>{t(`privacy.sections.${key}.body`)}</Text>
+          <Text style={[type.callout, { color: colors.textSecondary }]}>{t(`privacy.sections.${key}.body`)}</Text>
         </View>
       ))}
       {CONTACT_EMAIL ? (
         <View style={styles.section}>
-          <Text style={[styles.heading, { color: colors.text }]} accessibilityRole="header">
+          <Text style={[type.headline, { color: colors.text }]} accessibilityRole="header">
             {t("privacy.contactTitle")}
           </Text>
-          <Text style={[styles.body, { color: colors.textSecondary }]} selectable>
+          <Text style={[type.callout, { color: colors.accent }]} selectable>
             {CONTACT_EMAIL}
           </Text>
         </View>
       ) : null}
-      <Text style={[styles.updated, { color: colors.textSecondary }]}>{t("privacy.updated")}</Text>
+      <Text style={[type.footnote, { color: colors.textSecondary }]}>{t("privacy.updated")}</Text>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 20 },
-  intro: { fontSize: 16, lineHeight: 23 },
-  section: { gap: 6 },
-  heading: { fontSize: 17, fontWeight: "600" },
-  body: { fontSize: 15, lineHeight: 22 },
-  updated: { fontSize: 13 },
+  content: { paddingHorizontal: GUTTER, paddingTop: space[4], paddingBottom: space[10], gap: space[6] },
+  section: { gap: space[2] },
 });
