@@ -35,6 +35,8 @@ export const ICONS = {
   calendar:       { ios: "calendar",                      android: "calendar_today",         ion: "calendar-outline" },
   repeat:         { ios: "repeat",                        android: "repeat",                 ion: "repeat" },
   bell:           { ios: "bell",                          android: "notifications",          ion: "notifications-outline" },
+  filter:         { ios: "line.3.horizontal.decrease.circle", android: "filter_list",        ion: "filter-circle-outline" },
+  filterActive:   { ios: "line.3.horizontal.decrease.circle.fill", android: "filter_list",   ion: "filter-circle" },
   gear:           { ios: "gearshape",                     android: "settings",               ion: "settings-outline" },
   share:          { ios: "square.and.arrow.up",           android: "share",                  ion: "share-outline" },
   sun:            { ios: "sun.max",                       android: "light_mode",             ion: "sunny-outline" },

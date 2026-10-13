@@ -9,13 +9,15 @@ import {
   ScrollView,
   Alert,
   KeyboardAvoidingView,
+  Pressable,
 } from "react-native";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppStore } from "../store/useAppStore";
 import { findCategory, findSubcategory, transactionMonth } from "../store/selectors";
-import { INCOME_TYPES, Transaction, TransactionKind, TransactionSource, categoryLabel, isIncomeType } from "../models";
+import { INCOME_TYPES, Transaction, TransactionKind, TransactionSource, categoryLabel, dateKey, dayFromKey, isIncomeType } from "../models";
+import { HistoryFilter, NO_FILTER, activeFilterCount, filterTransactions, totalsOf } from "../services/historyFilter";
 import { formatMoney } from "../utils/money";
 import { formatDate, formatMonthWide, monthStart } from "../utils/dates";
 import { haptics } from "../utils/haptics";
@@ -30,6 +32,14 @@ import { Icon } from "@/components/Icon";
 import { PressableRow } from "@/components/ui/Pressables";
 import { Section, Separator } from "@/components/ui/Section";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { FilterSheet } from "@/components/history/FilterSheet";
+import {
+  KIND_KEYS,
+  activeFilterChips,
+  amountFilterLabel,
+  categoryFilterLabel,
+  periodFilterLabel,
+} from "@/components/history/filterText";
 import { dataColor } from "@/constants/palette";
 import { GUTTER, ROW_MIN, SECTION_GAP, corners, inputType, money, radius, space, tint, type } from "@/constants/design";
 
@@ -56,6 +66,11 @@ export default function HistoryScreen() {
 
   const [search, setSearch]   = useState("");
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [filter, setFilter]   = useState<HistoryFilter>(NO_FILTER);
+  const [filtering, setFiltering] = useState(false);
+  // Through a selector so it is fresh on every render (React Compiler caches plain values).
+  const todayKey = useAppStore(() => dateKey(new Date()));
+  const today = dayFromKey(todayKey);
 
   const rowTitle = (tx: Transaction) => {
     // An unnamed repeating income (the salary) is called by its source.
@@ -74,16 +89,30 @@ export default function HistoryScreen() {
     return [cat && categoryLabel(cat, t), sub && categoryLabel(sub, t)].filter(Boolean).join(" · ");
   };
 
-  // Newest first, grouped by month, filtered by the search field.
-  const sections = useMemo(() => {
+  // Newest first, narrowed by the search field...
+  const searched = useMemo(() => {
     const sorted = [...transactions].sort((a, b) => b.date.localeCompare(a.date));
-    const matches = query
-      ? sorted.filter((tx) => {
-          return [rowTitle(tx), tx.note ?? "", tagsOf(tx)].some((f) => f.toLowerCase().includes(query));
-        })
+    return query
+      ? sorted.filter((tx) => [rowTitle(tx), tx.note ?? "", tagsOf(tx)].some((f) => f.toLowerCase().includes(query)))
       : sorted;
+    // rowTitle and t depend on goals and language, both listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactions, categories, savingsGoals, query, i18n.language]);
+
+  // ...then by the filters, and grouped by month.
+  const categoryIds = useMemo(() => new Set(categories.map((c) => c.id)), [categories]);
+  const shown = useMemo(
+    () => filterTransactions(searched, filter, { categoryIds, today }),
+    // today is rebuilt every render; the day it stands for is what matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [searched, filter, categoryIds, todayKey]
+  );
+  const filterCount = activeFilterCount(filter);
+  const narrowed = filterCount > 0 || query.length > 0;
+
+  const sections = useMemo(() => {
     const byMonth = new Map<string, Transaction[]>();
-    for (const tx of matches) {
+    for (const tx of shown) {
       const key = transactionMonth(tx);
       if (!byMonth.has(key)) byMonth.set(key, []);
       byMonth.get(key)!.push(tx);
@@ -93,9 +122,20 @@ export default function HistoryScreen() {
       title: formatMonthWide(monthStart(key), i18n.language),
       data,
     }));
-    // rowTitle and t depend on goals and language, both listed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, categories, savingsGoals, query, i18n.language]);
+  }, [shown, i18n.language]);
+
+  // What is being looked at, in words, and the active filters as removable chips.
+  const labels = {
+    kind: filter.kind !== "all" ? t(KIND_KEYS[filter.kind]) : undefined,
+    category: categoryFilterLabel(filter, categories, t),
+    period: periodFilterLabel(filter, today, i18n.language, t),
+    amount: amountFilterLabel(filter, currency, t),
+  };
+  const chips = activeFilterChips(filter, labels);
+  const totals = totalsOf(shown);
+  const summaryTitle =
+    [labels.category ?? labels.kind, labels.period].filter(Boolean).join(" · ") ||
+    (query ? t("historyFilter.searchTitle", { query: search.trim() }) : t("historyFilter.results"));
 
   const confirmDeleteSavings = (tx: Transaction) => {
     haptics.warning();
@@ -164,6 +204,19 @@ export default function HistoryScreen() {
       <Stack.Screen
         options={{
           // The system search field in the navigation bar (DESIGN.md §4.2).
+          headerRight: () => (
+            <Pressable
+              onPress={() => setFiltering(true)}
+              hitSlop={8}
+              style={styles.headerButton}
+              accessibilityRole="button"
+              accessibilityLabel={
+                filterCount ? t("historyFilter.buttonActive", { count: filterCount }) : t("historyFilter.title")
+              }
+            >
+              <Icon name={filterCount ? "filterActive" : "filter"} size={22} color={colors.accent} />
+            </Pressable>
+          ),
           headerSearchBarOptions: {
             placeholder: t("history.searchPlaceholder"),
             onChangeText: (e) => setSearch(e.nativeEvent.text),
@@ -192,13 +245,75 @@ export default function HistoryScreen() {
         contentContainerStyle={styles.listContent}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          narrowed ? (
+            <View style={styles.listHeader}>
+              {chips.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                  {chips.map((chip) => (
+                    <Pressable
+                      key={chip.part}
+                      onPress={() => { haptics.selection(); setFilter(chip.without); }}
+                      style={[styles.chip, { backgroundColor: tint(colors.accent, "subtle") }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("historyFilter.remove", { name: chip.label })}
+                    >
+                      <Text style={[type.subheadline, { color: colors.accent }]} numberOfLines={1}>{chip.label}</Text>
+                      <Icon name="close" size={12} color={colors.accent} />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+              {/* "Food and drinks · September 2026: 8 transactions, spent 12.400 MKD." */}
+              {shown.length > 0 && (
+                <View style={[styles.summary, { backgroundColor: colors.card }]} accessible>
+                  <Text style={[type.headline, { color: colors.text }]} numberOfLines={2}>{summaryTitle}</Text>
+                  <Text style={[type.footnote, { color: colors.textSecondary }]}>
+                    {t("historyFilter.count", { count: totals.count })}
+                  </Text>
+                  <View style={styles.totals}>
+                    {[
+                      { key: "expenses", icon: "expense" as const, color: colors.destructive, value: totals.expenses, label: t("historyFilter.spent") },
+                      { key: "income", icon: "income" as const, color: colors.success, value: totals.income, label: t("historyFilter.received") },
+                      { key: "savings", icon: "vault" as const, color: colors.vault, value: totals.savings, label: t("historyFilter.saved") },
+                    ]
+                      .filter((item) => item.value > 0)
+                      .map((item) => (
+                        <View key={item.key} style={styles.total} accessible accessibilityLabel={`${item.label} ${formatMoney(item.value, currency)}`}>
+                          <Icon name={item.icon} size={14} color={item.color} />
+                          <Text style={[type.subheadline, money, { color: colors.text }]}>{formatMoney(item.value, currency)}</Text>
+                        </View>
+                      ))}
+                  </View>
+                </View>
+              )}
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Icon name={query ? "search" : "list"} size={48} color={colors.placeholder} />
-            <Text style={[type.title3, { color: colors.text }]}>{query ? t("history.noResults") : t("history.noItems")}</Text>
+            <Icon name={narrowed ? "search" : "list"} size={48} color={colors.placeholder} />
+            <Text style={[type.title3, { color: colors.text }]}>
+              {filterCount ? t("historyFilter.noMatch") : query ? t("history.noResults") : t("history.noItems")}
+            </Text>
+            {filterCount > 0 && (
+              <Pressable onPress={() => setFilter(NO_FILTER)} hitSlop={8} accessibilityRole="button">
+                <Text style={[type.body, { color: colors.accent }]}>{t("historyFilter.reset")}</Text>
+              </Pressable>
+            )}
           </View>
         }
       />
+
+      {filtering && (
+        <FilterSheet
+          filter={filter}
+          transactions={searched}
+          today={today}
+          onApply={(f) => { haptics.selection(); setFilter(f); setFiltering(false); }}
+          onClose={() => setFiltering(false)}
+        />
+      )}
 
       {editing && (
         <TransactionEditorModal
@@ -388,6 +503,13 @@ function TransactionEditorModal({ transaction, onClose, onSave, onDelete }: Edit
 }
 
 const styles = StyleSheet.create({
+  headerButton:  { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  listHeader:    { gap: space[3], paddingTop: space[2] },
+  chipRow:       { gap: space[2] },
+  chip:          { flexDirection: "row", alignItems: "center", gap: space[1] + 2, paddingHorizontal: space[3], minHeight: 32, ...corners(radius.pill) },
+  summary:       { padding: space[4], gap: space[1], ...corners(radius.lg) },
+  totals:        { flexDirection: "row", flexWrap: "wrap", columnGap: space[4], rowGap: space[1], marginTop: space[1] },
+  total:         { flexDirection: "row", alignItems: "center", gap: space[1] + 2 },
   listContent:   { paddingHorizontal: GUTTER, paddingBottom: space[8], flexGrow: 1 },
   sectionHeader: { paddingHorizontal: space[4], paddingTop: SECTION_GAP, paddingBottom: space[2] },
   rowWrap:       { overflow: "hidden" },
