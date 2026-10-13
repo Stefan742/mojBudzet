@@ -29,7 +29,8 @@
  *      complete months)
  *    This blends the theoretical rule with actual user behaviour.
  *
- * All results are rounded to the nearest integer (МКД has no sub-unit UX).
+ * All results are rounded to the nearest integer in the smallest unit of the
+ * app currency (whole denars for MKD, cents for EUR).
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -177,7 +178,7 @@ function classifyBucket(cat: CategoryWithMeta): Bucket {
   return bestBucket;
 }
 
-/** Clamps and rounds to integer МКД. */
+/** Clamps and rounds to an integer amount. */
 function mkd(value: number): number {
   return Math.max(0, Math.round(value));
 }

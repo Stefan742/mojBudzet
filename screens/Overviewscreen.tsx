@@ -15,6 +15,7 @@ import { formatMoney } from "../utils/money";
 import { formatMonthWide, monthKey, monthStart, shiftMonth } from "../utils/dates";
 import { haptics } from "../utils/haptics";
 import { useTheme } from "@/hooks/useTheme";
+import { useCurrency } from "@/hooks/useCurrency";
 import { useMotion } from "@/hooks/useMotion";
 import { Icon } from "@/components/Icon";
 import { Section, Separator } from "@/components/ui/Section";
@@ -174,7 +175,7 @@ export default function OverviewScreen() {
   const { t, i18n } = useTranslation();
   const { colors, isDark } = useTheme();
   const router = useRouter();
-  const currency = t("common.currency");
+  const currency = useCurrency();
 
   const transactions      = useAppStore((s) => s.transactions);
   const categories        = useAppStore((s) => s.categories);

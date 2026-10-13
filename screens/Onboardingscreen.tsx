@@ -11,11 +11,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
 import { useTheme } from "../hooks/useTheme";
-import { MAX_AMOUNT_MKD, formatWholeDenars, parseWholeDenars } from "../utils/money";
+import { validateAmount } from "../utils/money";
+import { amountErrorText, amountKeyboard, useCurrency } from "../hooks/useCurrency";
 import { haptics } from "../utils/haptics";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/Button";
 import { Section } from "@/components/ui/Section";
+import { PressableRow } from "@/components/ui/Pressables";
+import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { GUTTER, ROW_MIN, SECTION_GAP, corners, inputType, money, radius, space, tint, type } from "@/constants/design";
 
 export default function OnboardingScreen() {
@@ -23,6 +26,9 @@ export default function OnboardingScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const completeOnboarding = useAppStore((s) => s.completeOnboarding);
+  const setCurrency = useAppStore((s) => s.setCurrency);
+  const currency = useCurrency();
+  const [pickingCurrency, setPickingCurrency] = useState(false);
   const [balanceText, setBalanceText] = useState("");
   const [incomeText, setIncomeText]   = useState("");
   const [balanceError, setBalanceError] = useState<string | null>(null);
@@ -30,13 +36,8 @@ export default function OnboardingScreen() {
 
   // Returns the amount, or an error message for the field.
   const validate = (text: string, allowZero: boolean): number | string => {
-    const amount = parseWholeDenars(text);
-    if (amount === null) return t("settings.amountErrors.format");
-    if (amount === 0 && !allowZero) return t("settings.amountErrors.positive");
-    if (amount > MAX_AMOUNT_MKD) {
-      return t("settings.amountErrors.tooLarge", { max: formatWholeDenars(MAX_AMOUNT_MKD) });
-    }
-    return amount;
+    const result = validateAmount(text, currency, { allowZero });
+    return "error" in result ? amountErrorText(t, result.error, currency) : result.amount;
   };
 
   const handleContinue = () => {
@@ -94,6 +95,21 @@ export default function OnboardingScreen() {
         </View>
 
         <View style={styles.fields}>
+          {/* First, because it decides how the amounts below are typed. */}
+          <Section footer={t("onboarding.currencyHint")}>
+            <PressableRow
+              style={styles.currencyRow}
+              onPress={() => setPickingCurrency(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`${t("settings.currency")}, ${t(`currency.name.${currency.code}`)}`}
+            >
+              <Text style={[type.body, styles.flex, { color: colors.text }]}>{t("settings.currency")}</Text>
+              <Text style={[type.body, { color: colors.textSecondary }]} numberOfLines={1}>
+                {t(`currency.name.${currency.code}`)}
+              </Text>
+              <Icon name="chevronForward" size={14} color={colors.textTertiary} />
+            </PressableRow>
+          </Section>
           {fields.map((f, i) => (
             <Section
               key={f.key}
@@ -108,13 +124,13 @@ export default function OnboardingScreen() {
                   placeholderTextColor={colors.placeholder}
                   value={f.value}
                   onChangeText={f.onChange}
-                  keyboardType="number-pad"
+                  keyboardType={amountKeyboard(currency)}
                   textAlign="right"
                   autoFocus={i === 0}
                   accessibilityLabel={f.label}
                   accessibilityHint={f.error ?? f.hint}
                 />
-                <Text style={[type.title3, { color: colors.textSecondary }]}>{t("common.currency")}</Text>
+                <Text style={[type.title3, { color: colors.textSecondary }]}>{currency.label}</Text>
               </View>
             </Section>
           ))}
@@ -122,6 +138,20 @@ export default function OnboardingScreen() {
 
         <Button title={t("onboarding.continue")} onPress={handleContinue} disabled={!balanceText} />
       </ScrollView>
+
+      {pickingCurrency && (
+        <CurrencyPicker
+          selected={currency.code}
+          onSelect={(code) => {
+            setCurrency(code);
+            // Typed amounts are read in the new currency; old errors no longer apply.
+            setBalanceError(null);
+            setIncomeError(null);
+            setPickingCurrency(false);
+          }}
+          onClose={() => setPickingCurrency(false)}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -133,6 +163,7 @@ const styles = StyleSheet.create({
   top:         { alignItems: "center", gap: space[3] },
   badge:       { width: 80, height: 80, alignItems: "center", justifyContent: "center", marginBottom: space[2], ...corners(radius.xl) },
   fields:      { gap: SECTION_GAP },
+  currencyRow: { flexDirection: "row", alignItems: "center", gap: space[3], paddingHorizontal: space[4], minHeight: ROW_MIN + 4 },
   inputRow:    { flexDirection: "row", alignItems: "center", gap: space[3], paddingHorizontal: space[4], minHeight: ROW_MIN + 24 },
   amountInput: { flex: 1, minWidth: 0, paddingVertical: space[3] },
 });

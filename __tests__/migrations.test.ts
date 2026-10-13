@@ -67,10 +67,11 @@ describe("migratePersistedState to v2", () => {
     expect(out.categories?.[1].nameKey).toBeUndefined();
   });
 
-  it("starts the rollover from the current month, keeps language, drops currency", () => {
+  it("starts the rollover from the current month, keeps language, replaces the old currency text", () => {
     expect(out.lastRolloverMonth).toBe("2026-10");
     expect(out.language).toBe("en");
-    expect("currency" in out).toBe(false);
+    // v2 dropped the old display string; v4 brings the field back as a code.
+    expect(out.currency).toBe("MKD");
   });
 });
 
@@ -100,5 +101,26 @@ describe("migratePersistedState to v3 (palette)", () => {
     );
     expect(out.categories?.map((c) => c.colorHex)).toEqual(["#34C759", "#123456"]);
     expect(out.savingsGoals?.[0].colorHex).toBe("#30B0C7");
+  });
+});
+
+describe("migratePersistedState to v4 (currencies)", () => {
+  const deps = { newId: () => "x", now: new Date(2026, 9, 13) };
+
+  it("sets MKD and leaves every amount as it was", () => {
+    const saved = {
+      initialBalance: 20000,
+      vaultAmount: 500,
+      transactions: [{ id: "t", amount: 1250 }],
+      budgets: [{ id: "b", categoryId: "c", monthlyLimit: 9000 }],
+    };
+    const out = migratePersistedState(saved, 3, deps);
+    expect(out.currency).toBe("MKD");
+    expect(out).toMatchObject(saved);
+  });
+
+  it("keeps a valid currency and replaces an unknown one", () => {
+    expect(migratePersistedState({ currency: "EUR" }, 3, deps).currency).toBe("EUR");
+    expect(migratePersistedState({ currency: "XYZ" }, 3, deps).currency).toBe("MKD");
   });
 });

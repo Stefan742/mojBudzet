@@ -28,7 +28,7 @@ export interface Transaction {
 
   merchant: string;
 
-  /** Whole MKD, always positive; `kind` gives the direction. */
+  /** Smallest unit of the app currency, always positive; `kind` gives the direction. */
   amount: number;
 
   kind: TransactionKind;
@@ -49,7 +49,7 @@ export interface Transaction {
 }
 
 /**
- * Whole-MKD amount, and the fields that belong to the kind: income has a
+ * Integer amount, and the fields that belong to the kind: income has a
  * source and no category, everything else no source.
  */
 export function normalizeTransaction(t: Transaction): Transaction {

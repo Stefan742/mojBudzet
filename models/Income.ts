@@ -6,7 +6,7 @@
 export interface IncomeEntry {
   /** First month this amount applies to, "YYYY-MM". */
   effectiveFrom: string;
-  /** Whole MKD. */
+  /** Smallest unit of the app currency. */
   amount: number;
 }
 

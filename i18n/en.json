@@ -181,7 +181,7 @@
     "monthlyIncomeHint": "Applies from {{month}}. Earlier months stay as they were.",
     "notSet": "Not set",
     "amountErrors": {
-      "format": "Enter a whole amount in denars, e.g. 25 000",
+      "format": "Enter an amount, e.g. {{example}}",
       "positive": "The amount must be greater than 0",
       "tooLarge": "The amount is too large (max {{max}})"
     },
@@ -226,7 +226,10 @@
     "deleteAllTitle": "Delete all data?",
     "deleteAllBody": "All transactions, categories, budgets and goals will be deleted from this device. This cannot be undone. Export your data first if you want a copy.",
     "deleteAllConfirm": "Delete everything",
-    "dataFooter": "Your data is stored only on this device and may be included in the device's backups."
+    "dataFooter": "Your data is stored only on this device and may be included in the device's backups.",
+    "currencyHint": "Can be changed until you add your first transaction.",
+    "currencyLockedTitle": "Currency can't be changed",
+    "currencyLockedBody": "Your transactions are recorded in {{code}}, and amounts are never converted. To use another currency, export your data, then delete all data and start again."
   },
   "leftover": {
     "title": "Last month's leftover",
@@ -251,14 +254,14 @@
     "balanceHint": "How much money you have right now. Your balance starts from this.",
     "incomeLabel": "Monthly income (optional)",
     "incomeHint": "Used for budget planning, never added to your balance. You can change it in Settings.",
-    "continue": "Continue"
+    "continue": "Continue",
+    "currencyHint": "All amounts in the app are in this currency. You can change it until you add your first transaction."
   },
   "common": {
     "cancel": "Cancel",
     "delete": "Delete",
     "confirm": "Confirm",
     "back": "Back",
-    "currency": "MKD",
     "loading": "Loading",
     "close": "Close"
   },
@@ -339,5 +342,33 @@
     "gift": "Gift",
     "refund": "Refund",
     "other": "Other"
+  },
+  "currency": {
+    "name": {
+      "MKD": "Macedonian denar",
+      "EUR": "Euro",
+      "USD": "US dollar",
+      "CHF": "Swiss franc",
+      "GBP": "British pound",
+      "ALL": "Albanian lek",
+      "AUD": "Australian dollar",
+      "BAM": "Convertible mark (BiH)",
+      "CAD": "Canadian dollar",
+      "RSD": "Serbian dinar",
+      "SEK": "Swedish krona"
+    },
+    "label": {
+      "MKD": "MKD",
+      "EUR": "€",
+      "USD": "$",
+      "CHF": "CHF",
+      "GBP": "£",
+      "ALL": "ALL",
+      "AUD": "AUD",
+      "BAM": "BAM",
+      "CAD": "CAD",
+      "RSD": "RSD",
+      "SEK": "SEK"
+    }
   }
 }

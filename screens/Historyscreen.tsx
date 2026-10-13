@@ -20,6 +20,7 @@ import { formatMoney } from "../utils/money";
 import { formatDate, formatMonthWide, monthStart } from "../utils/dates";
 import { haptics } from "../utils/haptics";
 import { useTheme } from "@/hooks/useTheme";
+import { amountKeyboard, useCurrency } from "@/hooks/useCurrency";
 import { useAmountField } from "@/hooks/useAmountField";
 import { ModalHeader } from "@/components/ModalHeader";
 import { DateField } from "@/components/DateField";
@@ -45,7 +46,7 @@ const TILE = 36;
 export default function HistoryScreen() {
   const { t, i18n } = useTranslation();
   const { colors, isDark } = useTheme();
-  const currency = t("common.currency");
+  const currency = useCurrency();
 
   const transactions      = useAppStore((s) => s.transactions);
   const categories        = useAppStore((s) => s.categories);
@@ -218,7 +219,7 @@ function TransactionEditorModal({ transaction, onClose, onSave, onDelete }: Edit
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const categories = useAppStore((s) => s.categories);
-  const currency = t("common.currency");
+  const currency = useCurrency();
 
   const [tx, setTx] = useState<Transaction>(transaction);
   const [merchantError, setMerchantError] = useState(false);
@@ -294,10 +295,10 @@ function TransactionEditorModal({ transaction, onClose, onSave, onDelete }: Edit
                 onChangeText={amount.onChangeText}
                 placeholder="0"
                 placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
+                keyboardType={amountKeyboard(currency)}
                 accessibilityLabel={t("history.amount")}
               />
-              <Text style={[type.body, { color: colors.textSecondary }]}>{currency}</Text>
+              <Text style={[type.body, { color: colors.textSecondary }]}>{currency.label}</Text>
             </View>
             <Separator />
             <DateField label={t("history.date")} value={date} onChange={handleDateChange} />

@@ -8,6 +8,7 @@ import { calculateGoalProgress } from "../models";
 import { formatMoney, validateAmount } from "../utils/money";
 import { haptics } from "../utils/haptics";
 import { useTheme } from "@/hooks/useTheme";
+import { amountKeyboard, useCurrency } from "@/hooks/useCurrency";
 import { useAmountField } from "@/hooks/useAmountField";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/Button";
@@ -22,7 +23,7 @@ export default function VaultTransferSheet() {
   const { colors, isDark } = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
-  const currency = t("common.currency");
+  const currency = useCurrency();
 
   const vaultAmount       = useAppStore((s) => s.vaultAmount);
   const goals             = useAppStore((s) => s.savingsGoals);
@@ -32,7 +33,7 @@ export default function VaultTransferSheet() {
   const amountField = useAmountField();
 
   const selectedGoal = goals.find((g) => g.id === selectedGoalId);
-  const parsed = validateAmount(amountField.text);
+  const parsed = validateAmount(amountField.text, currency);
   const amount = "amount" in parsed ? parsed.amount : 0;
   const exceeds = amount > vaultAmount;
   const canConfirm = !!selectedGoal && amount > 0 && !exceeds;
@@ -71,7 +72,7 @@ export default function VaultTransferSheet() {
           onChangeText={amountField.onChangeText}
           placeholder="0"
           placeholderTextColor={colors.placeholder}
-          keyboardType="number-pad"
+          keyboardType={amountKeyboard(currency)}
           accessibilityLabel={t("savings.vaultTransfer.amount")}
         />
         <Pressable

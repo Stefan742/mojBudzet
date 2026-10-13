@@ -12,10 +12,11 @@ import { v4 as uuid } from "uuid";
 import { useAppStore } from "../store/useAppStore";
 import { showToast } from "../store/session";
 import { SavingsGoal, calculateGoalProgress } from "../models";
-import { formatMoney } from "../utils/money";
+import { formatMoney, type MoneyFormat } from "../utils/money";
 import { formatDate } from "../utils/dates";
 import { haptics } from "../utils/haptics";
 import { useTheme } from "@/hooks/useTheme";
+import { amountKeyboard, useCurrency } from "@/hooks/useCurrency";
 import { useMotion } from "@/hooks/useMotion";
 import { useAmountField } from "@/hooks/useAmountField";
 import { ModalHeader } from "@/components/ModalHeader";
@@ -33,7 +34,7 @@ import {
 const isAchieved = (g: SavingsGoal) => g.targetAmount > 0 && g.currentAmount >= g.targetAmount;
 
 // ─── Vault Card ───────────────────────────────────────────────────────────────
-function VaultCard({ amount, currency, onTransferPress }: { amount: number; currency: string; onTransferPress: () => void }) {
+function VaultCard({ amount, currency, onTransferPress }: { amount: number; currency: MoneyFormat; onTransferPress: () => void }) {
   const { colors, isDark } = useTheme();
   const { t } = useTranslation();
 
@@ -65,7 +66,7 @@ function VaultCard({ amount, currency, onTransferPress }: { amount: number; curr
 // ─── Swipeable Goal Card ──────────────────────────────────────────────────────
 interface GoalCardProps {
   goal: SavingsGoal;
-  currency: string;
+  currency: MoneyFormat;
   onPress: () => void;
   onDelete: () => void;
   onAddAmount: (amount: number) => void;
@@ -190,7 +191,7 @@ function GoalCard({ goal, currency, onPress, onDelete, onAddAmount }: GoalCardPr
                     onChangeText={amountField.onChangeText}
                     placeholder={t("savings.enterAmount")}
                     placeholderTextColor={colors.placeholder}
-                    keyboardType="number-pad"
+                    keyboardType={amountKeyboard(currency)}
                     autoFocus
                     accessibilityLabel={t("savings.enterAmount")}
                   />
@@ -233,7 +234,7 @@ export default function SavingsScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
-  const currency = t("common.currency");
+  const currency = useCurrency();
 
   const savingsGoals    = useAppStore((s) => s.savingsGoals);
   const vaultAmount     = useAppStore((s) => s.vaultAmount);
@@ -379,7 +380,7 @@ function GoalEditorModal({ goal, isNew, onClose, onDelete }: GoalEditorProps) {
   const { colors, isDark } = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const currency = t("common.currency");
+  const currency = useCurrency();
 
   const addGoal    = useAppStore((s) => s.addGoal);
   const updateGoal = useAppStore((s) => s.updateGoal);
@@ -457,10 +458,10 @@ function GoalEditorModal({ goal, isNew, onClose, onDelete }: GoalEditorProps) {
                 placeholder="0"
                 placeholderTextColor={colors.placeholder}
                 onChangeText={target.onChangeText}
-                keyboardType="number-pad"
+                keyboardType={amountKeyboard(currency)}
                 accessibilityLabel={t("savings.editor.target")}
               />
-              <Text style={[type.body, { color: colors.textSecondary }]}>{currency}</Text>
+              <Text style={[type.body, { color: colors.textSecondary }]}>{currency.label}</Text>
             </View>
             {isNew && (
               <>
@@ -473,11 +474,11 @@ function GoalEditorModal({ goal, isNew, onClose, onDelete }: GoalEditorProps) {
                     placeholder="0"
                     placeholderTextColor={colors.placeholder}
                     onChangeText={alreadySaved.onChangeText}
-                    keyboardType="number-pad"
+                    keyboardType={amountKeyboard(currency)}
                     accessibilityLabel={t("savings.editor.alreadySaved")}
                     accessibilityHint={t("savings.editor.alreadySavedHint")}
                   />
-                  <Text style={[type.body, { color: colors.textSecondary }]}>{currency}</Text>
+                  <Text style={[type.body, { color: colors.textSecondary }]}>{currency.label}</Text>
                 </View>
               </>
             )}

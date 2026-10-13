@@ -9,6 +9,7 @@ import { formatMoney } from "../utils/money";
 import { formatMonthWide, monthEnd, monthKey, monthStart, previousMonthKey } from "../utils/dates";
 import { haptics } from "../utils/haptics";
 import { useTheme } from "@/hooks/useTheme";
+import { useCurrency } from "@/hooks/useCurrency";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/Button";
 import { PressableRow } from "@/components/ui/Pressables";
@@ -25,7 +26,7 @@ export default function LeftoverSheet() {
   const { t, i18n } = useTranslation();
   const { colors, isDark } = useTheme();
   const router = useRouter();
-  const currency = t("common.currency");
+  const currency = useCurrency();
 
   const transactions     = useAppStore((s) => s.transactions);
   const initialBalance   = useAppStore((s) => s.initialBalance);

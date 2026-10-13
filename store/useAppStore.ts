@@ -12,6 +12,7 @@ import {
   normalizeTransaction,
 } from "../models";
 import { defaultCategories } from "../models/Category";
+import { CURRENCIES, DEFAULT_CURRENCY, type CurrencyCode } from "../constants/currencies";
 import {
   STORE_VERSION,
   migratePersistedState,
@@ -29,6 +30,12 @@ const STORAGE_KEY = "budget_state";
 interface Actions {
   completeOnboarding: (balance: number, monthlyIncome?: number) => void;
   setInitialBalance: (balance: number) => void;
+  /**
+   * Changes the app currency, only while there are no transactions (they
+   * would silently change meaning). The setup amounts keep the number the
+   * user typed: 20 000 MKD becomes 20 000,00 EUR.
+   */
+  setCurrency: (code: CurrencyCode) => void;
   /** Sets the monthly income from the current month onward (whole MKD). */
   setMonthlyIncome: (amount: number) => void;
 
@@ -76,6 +83,7 @@ export type AppStoreState = PersistedState & Actions;
 
 const initialState: PersistedState = {
   isOnboarded: false,
+  currency: DEFAULT_CURRENCY,
   initialBalance: 0,
   incomeSchedule: [],
   categories: defaultCategories,
@@ -114,6 +122,25 @@ export const useAppStore = create<AppStoreState>()(
         })),
 
       setInitialBalance: (balance) => set({ initialBalance: balance }),
+
+      setCurrency: (code) =>
+        set((s) => {
+          if (code === s.currency || s.transactions.length > 0) return {};
+          const factor = 10 ** (CURRENCIES[code].decimals - CURRENCIES[s.currency].decimals);
+          const scale = (v: number) => Math.round(v * factor);
+          return {
+            currency: code,
+            initialBalance: scale(s.initialBalance),
+            vaultAmount: scale(s.vaultAmount),
+            incomeSchedule: s.incomeSchedule.map((e) => ({ ...e, amount: scale(e.amount) })),
+            budgets: s.budgets.map((b) => ({ ...b, monthlyLimit: scale(b.monthlyLimit) })),
+            savingsGoals: s.savingsGoals.map((g) => ({
+              ...g,
+              targetAmount: scale(g.targetAmount),
+              currentAmount: scale(g.currentAmount),
+            })),
+          };
+        }),
 
       setMonthlyIncome: (amount) =>
         set((s) => ({

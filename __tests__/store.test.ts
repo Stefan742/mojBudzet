@@ -117,7 +117,8 @@ describe("export (R-11)", () => {
     store().saveFromBalance(100, null, "");
     const parsed = JSON.parse(buildExport(persistedSnapshot(), new Date(2026, 9, 6)));
     expect(parsed.app).toBe("mojbudzet");
-    expect(parsed.storeVersion).toBe(3);
+    expect(parsed.storeVersion).toBe(4);
+    expect(parsed.data.currency).toBe("MKD");
     expect(parsed.data.vaultAmount).toBe(100);
     expect(parsed.data.transactions).toHaveLength(1);
   });
@@ -174,5 +175,43 @@ describe("saving last month's leftover on the 1st (D-1)", () => {
     expect(store().vaultAmount).toBe(28500);
     expect(leftoverOf(store().transactions, "2026-09", balance())).toBe(0);
     expect(leftoverOf(store().transactions, "2026-10", balance())).toBe(20000);
+  });
+});
+
+describe("app currency", () => {
+  const spend = () =>
+    store().addTransaction({ id: "t", kind: TransactionKind.EXPENSE, amount: 100, date: new Date().toISOString(), merchant: "x", note: "", source: "Рачно" });
+
+  it("starts in MKD", () => {
+    expect(store().currency).toBe("MKD");
+  });
+
+  it("keeps the typed numbers when switching before any transaction", () => {
+    // beforeEach: opening balance 10 000 MKD, income 30 000 MKD.
+    store().setBudget("cat-needs", 9000);
+    store().addGoal({ id: "g", name: "Trip", targetAmount: 50000, currentAmount: 1000, colorHex: "#000" });
+    store().setCurrency("EUR");
+    expect(store().currency).toBe("EUR");
+    expect(store().initialBalance).toBe(1_000_000); // 10 000,00 EUR in cents
+    expect(store().incomeSchedule[0].amount).toBe(3_000_000);
+    expect(store().budgets[0].monthlyLimit).toBe(900_000);
+    expect(store().savingsGoals[0]).toMatchObject({ targetAmount: 5_000_000, currentAmount: 100_000 });
+
+    store().setCurrency("RSD");
+    expect(store().initialBalance).toBe(10000);
+    expect(store().budgets[0].monthlyLimit).toBe(9000);
+  });
+
+  it("is fixed once there is a transaction", () => {
+    spend();
+    store().setCurrency("EUR");
+    expect(store().currency).toBe("MKD");
+    expect(store().initialBalance).toBe(10000);
+  });
+
+  it("goes back to MKD when all data is deleted", () => {
+    store().setCurrency("EUR");
+    store().resetAll();
+    expect(store().currency).toBe("MKD");
   });
 });

@@ -3,10 +3,17 @@ import { Transaction } from "./Transaction";
 import { CategoryBudget } from "./Budget";
 import { SavingsGoal } from "./SavingsGoal";
 import { IncomeEntry } from "./Income";
+import type { CurrencyCode } from "../constants/currencies";
 
-/** Everything saved to AsyncStorage. Amounts are whole MKD. */
+/**
+ * Everything saved to AsyncStorage. Amounts are integers in the smallest unit
+ * of `currency` (whole denars for MKD, cents for EUR).
+ */
 export interface PersistedState {
   isOnboarded: boolean;
+
+  /** The one currency all amounts are in; never converted. */
+  currency: CurrencyCode;
 
   /** Opening balance entered at onboarding. */
   initialBalance: number;

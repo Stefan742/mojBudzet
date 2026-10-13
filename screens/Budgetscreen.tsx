@@ -24,6 +24,7 @@ import {
   BudgetSuggestion,
 } from "../services/budgetSuggestionEngine";
 import { useTheme } from "@/hooks/useTheme";
+import { amountKeyboard, useCurrency } from "@/hooks/useCurrency";
 import { useAmountField } from "@/hooks/useAmountField";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { Icon } from "@/components/Icon";
@@ -53,7 +54,7 @@ export default function BudgetScreen() {
   const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const currency = t("common.currency");
+  const currency = useCurrency();
 
   const categories             = useAppStore((s) => s.categories);
   const budgets                = useAppStore((s) => s.budgets);
@@ -181,11 +182,11 @@ export default function BudgetScreen() {
                     onChangeText={income.onChangeText}
                     placeholder="0"
                     placeholderTextColor={colors.placeholder}
-                    keyboardType="number-pad"
+                    keyboardType={amountKeyboard(currency)}
                     autoFocus
                     accessibilityLabel={t("budget.modal.question")}
                   />
-                  <Text style={[type.body, { color: colors.textSecondary }]}>{currency}</Text>
+                  <Text style={[type.body, { color: colors.textSecondary }]}>{currency.label}</Text>
                 </View>
               </Section>
               <View style={styles.rulePills}>
@@ -243,7 +244,7 @@ export default function BudgetScreen() {
 function BudgetRow({ category, limit }: { category: Category; limit: number }) {
   const { t } = useTranslation();
   const { colors, isDark } = useTheme();
-  const currency  = t("common.currency");
+  const currency  = useCurrency();
   const setBudget = useAppStore((s) => s.setBudget);
   // Select the number, not a function, so the row re-renders when
   // transactions change (B-1).
@@ -310,7 +311,7 @@ function BudgetRow({ category, limit }: { category: Category; limit: number }) {
           placeholderTextColor={colors.placeholder}
           value={limitField.text}
           onChangeText={limitField.onChangeText}
-          keyboardType="number-pad"
+          keyboardType={amountKeyboard(currency)}
           returnKeyType="done"
           onSubmitEditing={handleSet}
           accessibilityLabel={t("budget.limitFor", { name })}

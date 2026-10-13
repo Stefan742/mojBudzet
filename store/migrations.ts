@@ -2,9 +2,10 @@ import type { Category, PersistedState } from "../models";
 import { defaultCategories } from "../models/Category";
 import { monthKey } from "../utils/dates";
 import { LEGACY_COLOR_MAP } from "../constants/palette";
+import { DEFAULT_CURRENCY, isCurrencyCode } from "../constants/currencies";
 
 /** Bump when the persisted shape changes, and add a step to migratePersistedState. */
-export const STORE_VERSION = 3;
+export const STORE_VERSION = 4;
 
 /**
  * Repairs categories that were saved with a shared id (KB-1).
@@ -134,6 +135,12 @@ export function migratePersistedState(
     };
     if (Array.isArray(s.categories)) s.categories = (s.categories as Loose[]).map(recolor);
     if (Array.isArray(s.savingsGoals)) s.savingsGoals = (s.savingsGoals as Loose[]).map(recolor);
+  }
+
+  if (fromVersion < 4) {
+    // Currencies arrive. Everything saved so far is whole denars, which is
+    // exactly how MKD amounts are stored, so only the field is added.
+    if (!isCurrencyCode(s.currency)) s.currency = DEFAULT_CURRENCY;
   }
 
   return s as Partial<PersistedState>;

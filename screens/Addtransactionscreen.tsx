@@ -23,6 +23,7 @@ import { useMLCategorizer } from "../services/categorizer/useMLCategorizer";
 import { v4 as uuid } from "uuid";
 import { haptics } from "../utils/haptics";
 import { useTheme } from "@/hooks/useTheme";
+import { amountKeyboard, useCurrency } from "@/hooks/useCurrency";
 import { useAmountField } from "@/hooks/useAmountField";
 import { DateField } from "@/components/DateField";
 import { ChipRow } from "@/components/ChipRow";
@@ -51,7 +52,7 @@ export default function AddTransactionScreen() {
   const { colors } = useTheme();
   const addTransaction = useAppStore((s) => s.addTransaction);
   const categories     = useAppStore((s) => s.categories);
-  const currency       = t("common.currency");
+  const currency       = useCurrency();
 
   const { categorize, correct, isReady } = useMLCategorizer({ datasetCSV: MARKET_DATASET_CSV });
 
@@ -234,14 +235,14 @@ export default function AddTransactionScreen() {
             placeholderTextColor={colors.placeholder}
             value={amount.text}
             onChangeText={amount.onChangeText}
-            keyboardType="number-pad"
+            keyboardType={amountKeyboard(currency)}
             // Android's number pad has a Done key; iOS uses the toolbar below.
             returnKeyType="done"
             onSubmitEditing={() => { if (canSave) save(); }}
             inputAccessoryViewID={ACCESSORY.amount}
             accessibilityLabel={t("add.amount")}
           />
-          <Text style={[type.body, { color: colors.textSecondary }]}>{currency}</Text>
+          <Text style={[type.body, { color: colors.textSecondary }]}>{currency.label}</Text>
         </View>
         <Separator />
         <DateField label={t("history.date")} value={date} onChange={setDate} />

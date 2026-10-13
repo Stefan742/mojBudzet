@@ -20,10 +20,12 @@ import { buildExport } from "../store/backup";
 import { ModelStore } from "../services/categorizer/storage";
 import { useTheme } from "../hooks/useTheme";
 import { Category, categoryLabel, incomeForMonth, monthKey } from "../models";
-import { MAX_AMOUNT_MKD, formatWholeDenars, validateAmount } from "../utils/money";
+import { formatAmount, validateAmount } from "../utils/money";
+import { amountErrorText, amountKeyboard, useCurrency } from "../hooks/useCurrency";
 import { dateLocale, monthStart } from "../utils/dates";
 import { haptics } from "../utils/haptics";
 import { ModalHeader } from "@/components/ModalHeader";
+import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { Icon, type IconName } from "@/components/Icon";
 import { CATEGORY_ICONS, CategoryIcon, DEFAULT_CATEGORY_ICON, categoryIconName } from "@/components/CategoryIcon";
 import { PressableRow } from "@/components/ui/Pressables";
@@ -49,6 +51,10 @@ export default function SettingsScreen() {
   const categories        = useAppStore((s) => s.categories);
   const initialBalance    = useAppStore((s) => s.initialBalance);
   const setInitialBalance = useAppStore((s) => s.setInitialBalance);
+  const currency          = useCurrency();
+  const setCurrency       = useAppStore((s) => s.setCurrency);
+  // Once there are transactions the currency is fixed: they would change meaning.
+  const currencyLocked    = useAppStore((s) => s.transactions.length > 0);
   const setMonthlyIncome  = useAppStore((s) => s.setMonthlyIncome);
   // Read through a selector so it is re-evaluated on every render;
   // React Compiler would cache a plain `new Date()` in render.
@@ -61,6 +67,16 @@ export default function SettingsScreen() {
   const resetAll          = useAppStore((s) => s.resetAll);
 
   const [editor, setEditor] = useState<{ category: Category; isNew: boolean } | null>(null);
+  const [pickingCurrency, setPickingCurrency] = useState(false);
+
+  const handleCurrencyPress = () => {
+    if (!currencyLocked) {
+      setPickingCurrency(true);
+      return;
+    }
+    haptics.warning();
+    Alert.alert(t("settings.currencyLockedTitle"), t("settings.currencyLockedBody", { code: currency.code }));
+  };
 
   const monthLabel = monthStart(thisMonth).toLocaleString(dateLocale(i18n.language), {
     month: "long",
@@ -140,12 +156,24 @@ export default function SettingsScreen() {
         automaticallyAdjustKeyboardInsets
       >
         <Section title={t("settings.general")}>
-          <View style={styles.row}>
+          <PressableRow
+            style={styles.row}
+            onPress={handleCurrencyPress}
+            accessibilityRole="button"
+            accessibilityLabel={`${t("settings.currency")}, ${t(`currency.name.${currency.code}`)}`}
+            accessibilityHint={currencyLocked ? t("settings.currencyLockedTitle") : t("settings.currencyHint")}
+          >
             <Text style={[type.body, styles.rowLabel, { color: colors.text }]}>{t("settings.currency")}</Text>
-            <Text style={[type.body, { color: colors.textSecondary }]}>{t("common.currency")}</Text>
-          </View>
+            <Text style={[type.body, { color: colors.textSecondary }]}>{currency.code}</Text>
+            <Icon name="chevronForward" size={14} color={colors.textTertiary} />
+          </PressableRow>
+          {!currencyLocked && (
+            <Text style={[type.footnote, styles.rowFooter, { color: colors.textSecondary }]}>{t("settings.currencyHint")}</Text>
+          )}
           <Separator />
+          {/* Keyed by currency: changing it rescales the amounts, so the rows start over. */}
           <AmountRow
+            key={`balance-${currency.code}`}
             label={t("settings.startBalance")}
             value={initialBalance}
             allowZero
@@ -154,6 +182,7 @@ export default function SettingsScreen() {
           />
           <Separator />
           <AmountRow
+            key={`income-${currency.code}`}
             label={t("settings.monthlyIncome")}
             value={monthlyIncome}
             placeholder={t("settings.notSet")}
@@ -260,6 +289,20 @@ export default function SettingsScreen() {
         </Section>
       </ScrollView>
 
+      {pickingCurrency && (
+        <CurrencyPicker
+          selected={currency.code}
+          onSelect={(code) => {
+            if (code !== currency.code) {
+              setCurrency(code);
+              haptics.success();
+            }
+            setPickingCurrency(false);
+          }}
+          onClose={() => setPickingCurrency(false)}
+        />
+      )}
+
       {editor && (
         <CategoryEditorModal category={editor.category} isNew={editor.isNew} onClose={() => setEditor(null)} />
       )}
@@ -269,7 +312,7 @@ export default function SettingsScreen() {
 
 // ─── Amount Row ────────────────────────────────────────────────────────────────
 
-/** Editable whole-denar amount; validates and saves when editing ends. */
+/** Editable amount in the app currency; validates and saves when editing ends. */
 function AmountRow({
   label,
   value,
@@ -287,19 +330,22 @@ function AmountRow({
 }) {
   const { t }      = useTranslation();
   const { colors } = useTheme();
-  const [text, setText]   = useState(value > 0 || allowZero ? formatWholeDenars(value) : "");
+  const currency   = useCurrency();
+  const [text, setText]   = useState(
+    value > 0 || allowZero ? formatAmount(value, currency, { trimZeroCents: true }) : ""
+  );
   const [error, setError] = useState<string | null>(null);
 
   const handleEndEditing = () => {
     // Leaving an unset field empty is fine; it just stays unset.
     if (!allowZero && value === 0 && text.trim() === "") return;
-    const result = validateAmount(text, { allowZero });
+    const result = validateAmount(text, currency, { allowZero });
     if ("error" in result) {
       haptics.error();
-      setError(t(`settings.amountErrors.${result.error}`, { max: formatWholeDenars(MAX_AMOUNT_MKD) }));
+      setError(amountErrorText(t, result.error, currency));
       return;
     }
-    setText(formatWholeDenars(result.amount));
+    setText(formatAmount(result.amount, currency, { trimZeroCents: true }));
     if (result.amount !== value) {
       haptics.success();
       onSave(result.amount);
@@ -317,7 +363,7 @@ function AmountRow({
           value={text}
           onChangeText={(v) => { setText(v); setError(null); }}
           onEndEditing={handleEndEditing}
-          keyboardType="number-pad"
+          keyboardType={amountKeyboard(currency)}
           returnKeyType="done"
           placeholder={placeholder}
           placeholderTextColor={colors.placeholder}
