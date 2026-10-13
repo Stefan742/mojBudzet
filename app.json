@@ -55,7 +55,13 @@
         }
       ],
       "expo-font",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "color": "#007AFF"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
