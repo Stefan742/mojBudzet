@@ -53,16 +53,16 @@ describe("parseAmount: cents (EUR and the others)", () => {
 });
 
 describe("formatAmount", () => {
-  it("groups thousands with a dot in Macedonian and a comma in English", () => {
+  it("groups thousands with a dot in both languages", () => {
     expect(formatAmount(25000, mkd)).toBe("25.000");
     expect(formatAmount(1250000, mkd)).toBe("1.250.000");
-    expect(formatAmount(25000, moneyFormat("MKD", "en", "MKD"))).toBe("25,000");
+    expect(formatAmount(25000, moneyFormat("MKD", "en", "MKD"))).toBe("25.000");
   });
 
-  it("shows cents with the language's decimal separator", () => {
+  it("shows cents after a comma in both languages", () => {
     expect(formatAmount(123456, eurMk)).toBe("1.234,56");
-    expect(formatAmount(123456, eurEn)).toBe("1,234.56");
-    expect(formatAmount(5, eurEn)).toBe("0.05");
+    expect(formatAmount(123456, eurEn)).toBe("1.234,56");
+    expect(formatAmount(5, eurEn)).toBe("0,05");
   });
 
   it("can drop zero cents for a prefilled input", () => {
@@ -85,11 +85,11 @@ describe("formatAmount", () => {
 describe("formatMoney", () => {
   it("puts codes after the number", () => {
     expect(formatMoney(125000, mkd)).toBe(`125.000${NBSP}МКД`);
-    expect(formatMoney(1250, chfEn)).toBe(`12.50${NBSP}CHF`);
+    expect(formatMoney(1250, chfEn)).toBe(`12,50${NBSP}CHF`);
   });
 
   it("puts symbols first in English and after in Macedonian", () => {
-    expect(formatMoney(1250, eurEn)).toBe("€12.50");
+    expect(formatMoney(1250, eurEn)).toBe("€12,50");
     expect(formatMoney(1250, eurMk)).toBe(`12,50${NBSP}€`);
   });
 
@@ -99,7 +99,7 @@ describe("formatMoney", () => {
 
   it("keeps the sign for negative balances, before a symbol", () => {
     expect(formatMoney(-1250, mkd)).toBe(`-1.250${NBSP}МКД`);
-    expect(formatMoney(-1250, eurEn)).toBe("-€12.50");
+    expect(formatMoney(-1250, eurEn)).toBe("-€12,50");
   });
 });
 

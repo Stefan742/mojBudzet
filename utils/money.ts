@@ -14,10 +14,10 @@ export interface MoneyFormat {
   decimals: 0 | 2;
   /** Shown next to amounts: "МКД", "€", "CHF". */
   label: string;
-  /** "€12.50" instead of "12,50 €" (symbols in English). */
+  /** "€12,50" instead of "12,50 €" (symbols in English). */
   labelFirst: boolean;
   decimalSeparator: "." | ",";
-  /** Between thousands: "45.000" in Macedonian, "45,000" in English. */
+  /** Between thousands: "45.000" in both languages. */
   groupSeparator: "." | ",";
   /** Largest amount a user may type, in the smallest unit. */
   max: number;
@@ -31,8 +31,9 @@ export const moneyFormat = (code: CurrencyCode, language: string, label: string)
     decimals: spec.decimals,
     label,
     labelFirst: english && spec.symbol,
-    decimalSeparator: english ? "." : ",",
-    groupSeparator: english ? "," : ".",
+    // One style in both languages: "45.000", "1.250,50".
+    decimalSeparator: ",",
+    groupSeparator: ".",
     max: spec.maxWhole * 10 ** spec.decimals,
   };
 };
@@ -58,7 +59,7 @@ export const formatAmount = (
   return `${group(String(whole), f.groupSeparator)}${f.decimalSeparator}${String(fraction).padStart(f.decimals, "0")}`;
 };
 
-/** "-1.250 МКД", "€12.50", "12,50 €". Never shows "-0". */
+/** "-1.250 МКД", "€12,50", "12,50 €". Never shows "-0". */
 export const formatMoney = (amount: number, f: MoneyFormat): string => {
   const rounded = Math.round(amount);
   const sign = rounded < 0 ? "-" : "";
