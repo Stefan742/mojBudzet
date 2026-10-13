@@ -17,6 +17,8 @@ export interface MoneyFormat {
   /** "€12.50" instead of "12,50 €" (symbols in English). */
   labelFirst: boolean;
   decimalSeparator: "." | ",";
+  /** Between thousands: "45.000" in Macedonian, "45,000" in English. */
+  groupSeparator: "." | ",";
   /** Largest amount a user may type, in the smallest unit. */
   max: number;
 }
@@ -30,32 +32,33 @@ export const moneyFormat = (code: CurrencyCode, language: string, label: string)
     label,
     labelFirst: english && spec.symbol,
     decimalSeparator: english ? "." : ",",
+    groupSeparator: english ? "," : ".",
     max: spec.maxWhole * 10 ** spec.decimals,
   };
 };
 
-/** Thousands separated by a non-breaking space: "25 000". */
-const group = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
+/** Thousands separated the local way: "25.000" (mk), "25,000" (en). */
+const group = (digits: string, separator: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, separator);
 
 /**
- * The number alone, without sign or label: "25 000", "1 250,50".
+ * The number alone, without sign or label: "25.000", "1.250,50" (mk).
  * `trimZeroCents` drops ",00", for prefilling an input.
  */
 export const formatAmount = (
   amount: number,
-  f: Pick<MoneyFormat, "decimals" | "decimalSeparator">,
+  f: Pick<MoneyFormat, "decimals" | "decimalSeparator" | "groupSeparator">,
   { trimZeroCents = false }: { trimZeroCents?: boolean } = {}
 ): string => {
   const value = Math.abs(Math.round(amount));
-  if (f.decimals === 0) return group(String(value));
+  if (f.decimals === 0) return group(String(value), f.groupSeparator);
   const unit = 10 ** f.decimals;
   const whole = Math.floor(value / unit);
   const fraction = value % unit;
-  if (trimZeroCents && fraction === 0) return group(String(whole));
-  return `${group(String(whole))}${f.decimalSeparator}${String(fraction).padStart(f.decimals, "0")}`;
+  if (trimZeroCents && fraction === 0) return group(String(whole), f.groupSeparator);
+  return `${group(String(whole), f.groupSeparator)}${f.decimalSeparator}${String(fraction).padStart(f.decimals, "0")}`;
 };
 
-/** "-1 250 МКД", "€12.50", "12,50 €". Never shows "-0". */
+/** "-1.250 МКД", "€12.50", "12,50 €". Never shows "-0". */
 export const formatMoney = (amount: number, f: MoneyFormat): string => {
   const rounded = Math.round(amount);
   const sign = rounded < 0 ? "-" : "";

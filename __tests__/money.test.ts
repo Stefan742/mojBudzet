@@ -53,19 +53,21 @@ describe("parseAmount: cents (EUR and the others)", () => {
 });
 
 describe("formatAmount", () => {
-  it("groups thousands with a non-breaking space", () => {
-    expect(formatAmount(25000, mkd)).toBe(`25${NBSP}000`);
+  it("groups thousands with a dot in Macedonian and a comma in English", () => {
+    expect(formatAmount(25000, mkd)).toBe("25.000");
+    expect(formatAmount(1250000, mkd)).toBe("1.250.000");
+    expect(formatAmount(25000, moneyFormat("MKD", "en", "MKD"))).toBe("25,000");
   });
 
   it("shows cents with the language's decimal separator", () => {
-    expect(formatAmount(123456, eurMk)).toBe(`1${NBSP}234,56`);
-    expect(formatAmount(123456, eurEn)).toBe(`1${NBSP}234.56`);
+    expect(formatAmount(123456, eurMk)).toBe("1.234,56");
+    expect(formatAmount(123456, eurEn)).toBe("1,234.56");
     expect(formatAmount(5, eurEn)).toBe("0.05");
   });
 
   it("can drop zero cents for a prefilled input", () => {
-    expect(formatAmount(600000, eurMk, { trimZeroCents: true })).toBe(`6${NBSP}000`);
-    expect(formatAmount(600050, eurMk, { trimZeroCents: true })).toBe(`6${NBSP}000,50`);
+    expect(formatAmount(600000, eurMk, { trimZeroCents: true })).toBe("6.000");
+    expect(formatAmount(600050, eurMk, { trimZeroCents: true })).toBe("6.000,50");
   });
 
   it("round-trips through the parser in every currency and language", () => {
@@ -82,7 +84,7 @@ describe("formatAmount", () => {
 
 describe("formatMoney", () => {
   it("puts codes after the number", () => {
-    expect(formatMoney(125000, mkd)).toBe(`125${NBSP}000${NBSP}МКД`);
+    expect(formatMoney(125000, mkd)).toBe(`125.000${NBSP}МКД`);
     expect(formatMoney(1250, chfEn)).toBe(`12.50${NBSP}CHF`);
   });
 
@@ -96,7 +98,7 @@ describe("formatMoney", () => {
   });
 
   it("keeps the sign for negative balances, before a symbol", () => {
-    expect(formatMoney(-1250, mkd)).toBe(`-1${NBSP}250${NBSP}МКД`);
+    expect(formatMoney(-1250, mkd)).toBe(`-1.250${NBSP}МКД`);
     expect(formatMoney(-1250, eurEn)).toBe("-€12.50");
   });
 });
