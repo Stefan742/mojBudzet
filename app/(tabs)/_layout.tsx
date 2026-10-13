@@ -23,7 +23,8 @@ export default function TabLayout() {
       <NativeTabs.Trigger name="(overview)">
         <NativeTabs.Trigger.Label>{t("tabs.overview")}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: "chart.pie", selected: "chart.pie.fill" }} md="pie_chart" />
-        <NativeTabs.Trigger.Badge hidden={dueCount === 0}>{String(dueCount)}</NativeTabs.Trigger.Badge>
+        {/* Any text shows the badge, even "0"; only an empty, hidden badge is removed. */}
+        <NativeTabs.Trigger.Badge hidden={dueCount === 0}>{dueCount > 0 ? String(dueCount) : undefined}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="history">
         <NativeTabs.Trigger.Label>{t("tabs.history")}</NativeTabs.Trigger.Label>
