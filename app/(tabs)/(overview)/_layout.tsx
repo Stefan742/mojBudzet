@@ -13,12 +13,24 @@ export default function OverviewStack() {
     <Stack screenOptions={useLargeTitleOptions()}>
       <Stack.Screen name="index" options={{ title: t("overview.title") }} />
       <Stack.Screen name="settings" options={{ title: t("settings.title") }} />
+      <Stack.Screen name="repeating" options={{ title: t("repeating.title") }} />
       <Stack.Screen
         name="leftover"
         options={{
           presentation: "formSheet",
           headerShown: false,
           sheetAllowedDetents: [0.75, 1],
+          sheetGrabberVisible: true,
+          sheetCornerRadius: 24,
+          contentStyle: { backgroundColor: colors.surfaceRaised },
+        }}
+      />
+      <Stack.Screen
+        name="due"
+        options={{
+          presentation: "formSheet",
+          headerShown: false,
+          sheetAllowedDetents: [0.7, 1],
           sheetGrabberVisible: true,
           sheetCornerRadius: 24,
           contentStyle: { backgroundColor: colors.surfaceRaised },

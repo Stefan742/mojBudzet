@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { AccessibilityInfo, Animated, StyleSheet, Text, View } from "react-native";
+import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlassSurface } from "./GlassSurface";
 import { Icon } from "@/components/Icon";
@@ -10,6 +10,8 @@ import { useSession } from "@/store/session";
 
 const HIDDEN_Y = -160;
 const VISIBLE_MS = 2200;
+/** Longer when there is a button to reach (Undo). */
+const VISIBLE_WITH_ACTION_MS = 5000;
 /** About how long the standard spring takes to slide in or out. */
 const SLIDE_MS = 450;
 
@@ -44,7 +46,7 @@ export function ToastHost() {
       setTimeout(() => {
         if (!reduceMotion) spring(y, HIDDEN_Y, "standard").start();
         timers.push(setTimeout(() => clearToast(toast.id), reduceMotion ? 0 : SLIDE_MS));
-      }, (reduceMotion ? 0 : SLIDE_MS) + VISIBLE_MS)
+      }, (reduceMotion ? 0 : SLIDE_MS) + (toast.action ? VISIBLE_WITH_ACTION_MS : VISIBLE_MS))
     );
     return () => timers.forEach(clearTimeout);
     // spring is recreated each render; a new toast id is what matters.
@@ -55,7 +57,7 @@ export function ToastHost() {
 
   return (
     <Animated.View
-      pointerEvents="none"
+      pointerEvents={toast.action ? "box-none" : "none"}
       style={[styles.wrap, { top: insets.top + space[2], transform: [{ translateY: y }] }]}
     >
       <View style={[elevation.floating(isDark), corners(radius.pill)]}>
@@ -64,6 +66,18 @@ export function ToastHost() {
           <Text style={[type.subheadline, styles.text, { color: colors.text }]} numberOfLines={2}>
             {toast.message}
           </Text>
+          {toast.action && (
+            <Pressable
+              onPress={() => {
+                toast.action?.onPress();
+                clearToast(toast.id);
+              }}
+              hitSlop={12}
+              accessibilityRole="button"
+            >
+              <Text style={[type.subheadline, styles.text, { color: colors.accent }]}>{toast.action.label}</Text>
+            </Pressable>
+          )}
         </GlassSurface>
       </View>
     </Animated.View>

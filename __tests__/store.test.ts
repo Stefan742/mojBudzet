@@ -2,7 +2,7 @@ import { useAppStore, persistedSnapshot } from "../store/useAppStore";
 import { balanceOf, leftoverOf, monthTotals } from "../store/selectors";
 import { buildExport } from "../store/backup";
 import { STORE_VERSION } from "../store/migrations";
-import { TransactionKind, monthKey } from "../models";
+import { RecurringRule, TransactionKind, dateKey, monthKey } from "../models";
 import { monthEnd } from "../utils/dates";
 
 // Hoisted above the imports by babel-jest.
@@ -15,7 +15,7 @@ const balance = () => balanceOf(store().initialBalance, store().transactions);
 
 beforeEach(() => {
   store().resetAll();
-  store().completeOnboarding(10000, 30000);
+  store().completeOnboarding(10000, { amount: 30000, day: 25, name: "Плата" });
 });
 
 describe("money moves keep balance and savings in agreement (D-5)", () => {
@@ -89,8 +89,15 @@ describe("categories and budgets", () => {
 });
 
 describe("onboarding and rollover", () => {
-  it("records income from this month and skips the first rollover", () => {
-    expect(store().incomeSchedule).toEqual([{ effectiveFrom: monthKey(new Date()), amount: 30000 }]);
+  it("turns the salary into a repeating income that asks, and skips the first rollover", () => {
+    expect(store().recurring).toEqual([
+      expect.objectContaining({
+        kind: TransactionKind.INCOME, merchant: "Плата", amount: 30000, incomeType: "salary",
+        frequency: "monthly", day: 25, ask: true, paused: false,
+      }),
+    ]);
+    // Never on or before today: a salary already paid is in the opening balance.
+    expect(store().recurring[0].nextDate > dateKey(new Date())).toBe(true);
     expect(store().lastRolloverMonth).toBe(monthKey(new Date()));
   });
 
@@ -188,13 +195,13 @@ describe("app currency", () => {
   });
 
   it("keeps the typed numbers when switching before any transaction", () => {
-    // beforeEach: opening balance 10 000 MKD, income 30 000 MKD.
+    // beforeEach: opening balance 10 000 MKD, salary 30 000 MKD.
     store().setBudget("cat-needs", 9000);
     store().addGoal({ id: "g", name: "Trip", targetAmount: 50000, currentAmount: 1000, colorHex: "#000" });
     store().setCurrency("EUR");
     expect(store().currency).toBe("EUR");
     expect(store().initialBalance).toBe(1_000_000); // 10 000,00 EUR in cents
-    expect(store().incomeSchedule[0].amount).toBe(3_000_000);
+    expect(store().recurring[0].amount).toBe(3_000_000);
     expect(store().budgets[0].monthlyLimit).toBe(900_000);
     expect(store().savingsGoals[0]).toMatchObject({ targetAmount: 5_000_000, currentAmount: 100_000 });
 
@@ -214,5 +221,62 @@ describe("app currency", () => {
     store().setCurrency("EUR");
     store().resetAll();
     expect(store().currency).toBe("MKD");
+  });
+});
+
+describe("repeating transactions", () => {
+  const rent = (over: Partial<RecurringRule> = {}): RecurringRule => ({
+    id: "rent", kind: TransactionKind.EXPENSE, merchant: "Kirija", amount: 15000, variable: false,
+    categoryId: "cat-needs", subcategoryId: "sub-bills", note: "", frequency: "monthly", day: 1,
+    ask: true, paused: false, nextDate: "2026-09-01", ...over,
+  });
+  const fromRule = () => store().transactions.filter((t) => t.recurringId === "rent");
+
+  it("adds the next occurrence on its own day and moves on a month", () => {
+    store().saveRecurring(rent());
+    store().addRecurringOccurrence("rent");
+    expect(fromRule()).toHaveLength(1);
+    expect(fromRule()[0]).toMatchObject({ amount: 15000, merchant: "Kirija", categoryId: "cat-needs", subcategoryId: "sub-bills" });
+    expect(dateKey(new Date(fromRule()[0].date))).toBe("2026-09-01");
+    expect(store().recurring.find((r) => r.id === "rent")?.nextDate).toBe("2026-10-01");
+  });
+
+  it("remembers a changing amount as the next hint, but not a one-off change of a fixed one", () => {
+    store().saveRecurring(rent({ id: "rent", variable: true, amount: 3800 }));
+    store().addRecurringOccurrence("rent", { amount: 3912 });
+    expect(store().recurring.find((r) => r.id === "rent")?.amount).toBe(3912);
+    store().saveRecurring(rent({ nextDate: "2026-11-01" }));
+    store().addRecurringOccurrence("rent", { amount: 16000 });
+    expect(store().recurring.find((r) => r.id === "rent")?.amount).toBe(15000);
+  });
+
+  it("skips without adding anything", () => {
+    store().saveRecurring(rent());
+    store().skipRecurringOccurrence("rent");
+    expect(fromRule()).toHaveLength(0);
+    expect(store().recurring.find((r) => r.id === "rent")?.nextDate).toBe("2026-10-01");
+  });
+
+  it("adds every missed occurrence in its own month, and Undo puts everything back", () => {
+    store().saveRecurring(rent());
+    const undo = store().addDueOccurrences(["rent"], "2026-10-13");
+    expect(fromRule().map((t) => monthKey(new Date(t.date))).sort()).toEqual(["2026-09", "2026-10"]);
+    expect(store().recurring.find((r) => r.id === "rent")?.nextDate).toBe("2026-11-01");
+    store().undoRecurring(undo!);
+    expect(fromRule()).toHaveLength(0);
+    expect(store().recurring.find((r) => r.id === "rent")?.nextDate).toBe("2026-09-01");
+  });
+
+  it("never adds changing amounts or paused rules on its own", () => {
+    store().saveRecurring(rent({ variable: true }));
+    expect(store().addDueOccurrences(["rent"], "2026-10-13")).toBeNull();
+    store().saveRecurring(rent({ paused: true }));
+    expect(store().addDueOccurrences(["rent"], "2026-10-13")).toBeNull();
+  });
+
+  it("forgets a deleted category, keeps the rule", () => {
+    store().saveRecurring(rent());
+    store().deleteCategory("cat-needs");
+    expect(store().recurring.find((r) => r.id === "rent")).toMatchObject({ categoryId: undefined, subcategoryId: undefined });
   });
 });

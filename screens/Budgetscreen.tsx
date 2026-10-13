@@ -17,7 +17,7 @@ import { useAppStore } from "../store/useAppStore";
 import { showToast } from "../store/session";
 import { formatMoney } from "../utils/money";
 import { haptics } from "../utils/haptics";
-import { Category, categoryLabel, incomeForMonth, monthKey } from "../models";
+import { Category, categoryLabel, monthKey, plannedMonthlyIncome } from "../models";
 import { BUDGET_WARN_AT, spentInCategory } from "../store/selectors";
 import {
   generateBudgetSuggestion,
@@ -58,8 +58,8 @@ export default function BudgetScreen() {
 
   const categories             = useAppStore((s) => s.categories);
   const budgets                = useAppStore((s) => s.budgets);
-  // monthKey(new Date()) inside the selector so it is never a cached render value.
-  const monthlyIncome          = useAppStore((s) => incomeForMonth(s.incomeSchedule, monthKey(new Date())));
+  // The repeating salary (and other repeating income) is the planned income.
+  const monthlyIncome          = useAppStore((s) => plannedMonthlyIncome(s.recurring));
   const transactions           = useAppStore((s) => s.transactions);
   const applyBudgetSuggestions = useAppStore((s) => s.applyBudgetSuggestions);
 
@@ -81,7 +81,7 @@ export default function BudgetScreen() {
     budgets.find((b) => b.categoryId === categoryId)?.monthlyLimit ?? 0;
 
   const openModal = () => {
-    // Pre-fill with the monthly income from Settings at the moment the sheet opens.
+    // Pre-fill with the planned monthly income (repeating salary) when the sheet opens.
     if (monthlyIncome > 0) income.setAmount(monthlyIncome);
     else income.reset();
     setStep("income");

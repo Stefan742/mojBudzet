@@ -7,9 +7,13 @@ import {
   Transaction,
   TransactionKind,
   SavingsGoal,
+  RecurringRule,
   monthKey,
-  withIncomeFrom,
   normalizeTransaction,
+  dayFromKey,
+  firstAfter,
+  followingDate,
+  isDue,
 } from "../models";
 import { defaultCategories } from "../models/Category";
 import { CURRENCIES, DEFAULT_CURRENCY, type CurrencyCode } from "../constants/currencies";
@@ -28,8 +32,23 @@ const STORAGE_KEY = "budget_state";
 // Derived values (balance, totals, spent per category) live in ./selectors as
 // pure functions, so components subscribe to the data they read (Q-2).
 
+/** What one repeating action changed, so the toast's Undo can put it back. */
+export interface RecurringUndo {
+  transactionIds: string[];
+  /** The rules as they were before. */
+  rules: RecurringRule[];
+}
+
+/** The salary set up during onboarding: becomes a repeating income. */
+export interface OnboardingSalary {
+  amount: number;
+  day: number;
+  /** Its name in the app language ("Плата", "Salary"). */
+  name: string;
+}
+
 interface Actions {
-  completeOnboarding: (balance: number, monthlyIncome?: number) => void;
+  completeOnboarding: (balance: number, salary?: OnboardingSalary) => void;
   setInitialBalance: (balance: number) => void;
   /**
    * Changes the app currency, only while there are no transactions (they
@@ -37,8 +56,6 @@ interface Actions {
    * user typed: 20 000 MKD becomes 20 000,00 EUR.
    */
   setCurrency: (code: CurrencyCode) => void;
-  /** Sets the monthly income from the current month onward (whole MKD). */
-  setMonthlyIncome: (amount: number) => void;
 
   addTransaction: (t: Transaction) => void;
   updateTransaction: (t: Transaction) => void;
@@ -69,6 +86,22 @@ interface Actions {
   /** Moves money between pots; capped at what the vault holds. */
   transferFromVault: (amount: number, goalId: string) => void;
 
+  /** Adds or replaces a repeating transaction. */
+  saveRecurring: (rule: RecurringRule) => void;
+  /** Transactions it already added stay. */
+  deleteRecurring: (id: string) => void;
+  /**
+   * Adds the rule's next occurrence, dated on its own day unless `edit.date`
+   * says otherwise. A changing amount is remembered as the next hint.
+   */
+  addRecurringOccurrence: (id: string, edit?: { amount?: number; date?: Date }) => RecurringUndo | null;
+  /** Moves past the next occurrence without adding it. */
+  skipRecurringOccurrence: (id: string) => RecurringUndo | null;
+  /** Every occurrence due by `todayKey` of these rules; changing amounts are left alone. */
+  addDueOccurrences: (ids: string[], todayKey: string) => RecurringUndo | null;
+  undoRecurring: (undo: RecurringUndo) => void;
+  setRemindersEnabled: (on: boolean) => void;
+
   /** Marks a month's leftover as handled so the prompt is not shown again. */
   markRolloverDone: (month: string) => void;
 
@@ -86,7 +119,8 @@ const initialState: PersistedState = {
   isOnboarded: false,
   currency: DEFAULT_CURRENCY,
   initialBalance: 0,
-  incomeSchedule: [],
+  recurring: [],
+  remindersEnabled: true,
   categories: defaultCategories,
   transactions: [],
   budgets: [],
@@ -105,21 +139,54 @@ const pickPersisted = (s: AppStoreState): PersistedState =>
 
 const deviceLanguage = (): string => i18n.options.lng ?? "mk";
 
+/** The transaction for one occurrence of a rule. */
+const occurrenceTransaction = (rule: RecurringRule, amount: number, date?: Date): Transaction =>
+  normalizeTransaction({
+    id: uuid(),
+    date: (date ?? dayFromKey(rule.nextDate)).toISOString(),
+    merchant: rule.merchant,
+    amount,
+    kind: rule.kind,
+    categoryId: rule.categoryId,
+    subcategoryId: rule.subcategoryId,
+    incomeType: rule.incomeType,
+    note: rule.note,
+    source: "Рачно",
+    recurringId: rule.id,
+  });
+
 export const useAppStore = create<AppStoreState>()(
   persist(
     (set, get) => ({
       ...initialState,
 
-      completeOnboarding: (balance, monthlyIncome = 0) =>
+      completeOnboarding: (balance, salary) =>
         set((s) => ({
           initialBalance: balance,
           isOnboarded: true,
           // Nothing to roll over for the month the user starts in.
           lastRolloverMonth: monthKey(new Date()),
-          incomeSchedule:
-            monthlyIncome > 0
-              ? withIncomeFrom(s.incomeSchedule, monthKey(new Date()), monthlyIncome)
-              : s.incomeSchedule,
+          recurring:
+            salary && salary.amount > 0
+              ? [
+                  ...s.recurring,
+                  {
+                    id: uuid(),
+                    kind: TransactionKind.INCOME,
+                    merchant: salary.name,
+                    amount: Math.round(salary.amount),
+                    variable: false,
+                    incomeType: "salary",
+                    note: "",
+                    frequency: "monthly",
+                    day: salary.day,
+                    ask: true,
+                    paused: false,
+                    // Today's balance already includes a salary paid today or earlier.
+                    nextDate: firstAfter({ frequency: "monthly", day: salary.day }, new Date()),
+                  },
+                ]
+              : s.recurring,
         })),
 
       setInitialBalance: (balance) => set({ initialBalance: balance }),
@@ -133,7 +200,7 @@ export const useAppStore = create<AppStoreState>()(
             currency: code,
             initialBalance: scale(s.initialBalance),
             vaultAmount: scale(s.vaultAmount),
-            incomeSchedule: s.incomeSchedule.map((e) => ({ ...e, amount: scale(e.amount) })),
+            recurring: s.recurring.map((r) => ({ ...r, amount: scale(r.amount) })),
             budgets: s.budgets.map((b) => ({ ...b, monthlyLimit: scale(b.monthlyLimit) })),
             savingsGoals: s.savingsGoals.map((g) => ({
               ...g,
@@ -142,11 +209,6 @@ export const useAppStore = create<AppStoreState>()(
             })),
           };
         }),
-
-      setMonthlyIncome: (amount) =>
-        set((s) => ({
-          incomeSchedule: withIncomeFrom(s.incomeSchedule, monthKey(new Date()), amount),
-        })),
 
       addTransaction: (t) =>
         set((s) => ({ transactions: [normalizeTransaction(t), ...s.transactions] })),
@@ -214,6 +276,9 @@ export const useAppStore = create<AppStoreState>()(
           transactions: s.transactions.map((t) =>
             t.categoryId === id ? { ...t, categoryId: undefined, subcategoryId: undefined } : t
           ),
+          recurring: s.recurring.map((r) =>
+            r.categoryId === id ? { ...r, categoryId: undefined, subcategoryId: undefined } : r
+          ),
         })),
 
       addGoal: (g) =>
@@ -278,6 +343,70 @@ export const useAppStore = create<AppStoreState>()(
           };
         }),
 
+      saveRecurring: (rule) =>
+        set((s) => ({
+          recurring: s.recurring.some((r) => r.id === rule.id)
+            ? s.recurring.map((r) => (r.id === rule.id ? rule : r))
+            : [...s.recurring, rule],
+        })),
+
+      deleteRecurring: (id) => set((s) => ({ recurring: s.recurring.filter((r) => r.id !== id) })),
+
+      addRecurringOccurrence: (id, edit) => {
+        const s = get();
+        const rule = s.recurring.find((r) => r.id === id);
+        const amount = Math.round(edit?.amount ?? rule?.amount ?? 0);
+        if (!rule || amount <= 0) return null;
+        const tx = occurrenceTransaction(rule, amount, edit?.date);
+        const next: RecurringRule = {
+          ...rule,
+          nextDate: followingDate(rule, rule.nextDate),
+          amount: rule.variable ? amount : rule.amount,
+        };
+        set({
+          transactions: [tx, ...s.transactions],
+          recurring: s.recurring.map((r) => (r.id === id ? next : r)),
+        });
+        return { transactionIds: [tx.id], rules: [rule] };
+      },
+
+      skipRecurringOccurrence: (id) => {
+        const rule = get().recurring.find((r) => r.id === id);
+        if (!rule) return null;
+        set((s) => ({
+          recurring: s.recurring.map((r) => (r.id === id ? { ...r, nextDate: followingDate(r, r.nextDate) } : r)),
+        }));
+        return { transactionIds: [], rules: [rule] };
+      },
+
+      addDueOccurrences: (ids, todayKey) => {
+        const s = get();
+        const added: Transaction[] = [];
+        const before: RecurringRule[] = [];
+        const recurring = s.recurring.map((rule) => {
+          if (!ids.includes(rule.id) || rule.variable || rule.amount <= 0 || !isDue(rule, todayKey)) return rule;
+          before.push(rule);
+          let next = rule;
+          // Each missed occurrence on its own day, so every month's totals stay right.
+          while (isDue(next, todayKey)) {
+            added.push(occurrenceTransaction(next, next.amount));
+            next = { ...next, nextDate: followingDate(next, next.nextDate) };
+          }
+          return next;
+        });
+        if (!added.length) return null;
+        set({ transactions: [...added, ...s.transactions], recurring });
+        return { transactionIds: added.map((t) => t.id), rules: before };
+      },
+
+      undoRecurring: (undo) =>
+        set((s) => ({
+          transactions: s.transactions.filter((t) => !undo.transactionIds.includes(t.id)),
+          recurring: s.recurring.map((r) => undo.rules.find((u) => u.id === r.id) ?? r),
+        })),
+
+      setRemindersEnabled: (on) => set({ remindersEnabled: on }),
+
       markRolloverDone: (month) => set({ lastRolloverMonth: month }),
 
       setTheme: (theme) => set({ theme }),
@@ -300,7 +429,11 @@ export const useAppStore = create<AppStoreState>()(
       // Only data is saved, never the action functions (D-3).
       partialize: pickPersisted,
       migrate: (persisted, version) =>
-        migratePersistedState(persisted, version, { newId: uuid, now: new Date() }) as AppStoreState,
+        migratePersistedState(persisted, version, {
+          newId: uuid,
+          now: new Date(),
+          salaryName: i18n.t("incomeTypes.salary"),
+        }) as AppStoreState,
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<PersistedState>;
         return {

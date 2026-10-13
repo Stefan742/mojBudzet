@@ -58,7 +58,8 @@ export default function HistoryScreen() {
   const [editing, setEditing] = useState<Transaction | null>(null);
 
   const rowTitle = (tx: Transaction) => {
-    if (tx.kind !== TransactionKind.SAVINGS) return tx.merchant;
+    // An unnamed repeating income (the salary) is called by its source.
+    if (tx.kind !== TransactionKind.SAVINGS) return tx.merchant || (isIncomeType(tx.incomeType) ? t(`incomeTypes.${tx.incomeType}`) : "");
     const goal = savingsGoals.find((g) => g.id === tx.goalId);
     return goal ? t("history.savedToGoal", { name: goal.name }) : t("history.savedToVault");
   };
@@ -121,7 +122,7 @@ export default function HistoryScreen() {
           style={styles.row}
           onPress={() => (isSavings ? confirmDeleteSavings(tx) : setEditing(tx))}
           accessibilityRole="button"
-          accessibilityLabel={[rowTitle(tx), tags, dateText, amountText].filter(Boolean).join(", ")}
+          accessibilityLabel={[rowTitle(tx), tags, dateText, amountText, tx.recurringId && t("repeating.title")].filter(Boolean).join(", ")}
           accessibilityHint={isSavings ? t("a11y.deleteHint") : t("a11y.editHint")}
         >
           <View style={[styles.tile, { backgroundColor: isSavings ? colors.vaultBg : isIncome ? colors.successBg : cat ? tint(catColor, "soft") : colors.fill }]}>
@@ -135,9 +136,14 @@ export default function HistoryScreen() {
           </View>
           <View style={styles.rowText}>
             <Text style={[type.body, { color: colors.text }]} numberOfLines={1}>{rowTitle(tx)}</Text>
-            <Text style={[type.footnote, { color: colors.textSecondary }]} numberOfLines={1}>
-              {[tags, dateText].filter(Boolean).join(" · ")}
-            </Text>
+            <View style={styles.subRow}>
+              {tx.recurringId && (
+                <Icon name="repeat" size={11} color={colors.textSecondary} />
+              )}
+              <Text style={[type.footnote, styles.subText, { color: colors.textSecondary }]} numberOfLines={1}>
+                {[tags, dateText].filter(Boolean).join(" · ")}
+              </Text>
+            </View>
           </View>
           <View style={styles.rowRight}>
             <Text style={[type.headline, money, { color: isIncome ? colors.success : isSavings ? colors.vault : colors.text }]}>
@@ -390,6 +396,8 @@ const styles = StyleSheet.create({
   row:           { flexDirection: "row", alignItems: "center", gap: space[3], paddingHorizontal: space[4], paddingVertical: space[2] + 2, minHeight: ROW_MIN + 16 },
   tile:          { width: TILE, height: TILE, alignItems: "center", justifyContent: "center", ...corners(radius.sm) },
   rowText:       { flex: 1, gap: 2 },
+  subRow:        { flexDirection: "row", alignItems: "center", gap: 4 },
+  subText:       { flexShrink: 1 },
   rowRight:      { alignItems: "flex-end", gap: 2 },
   empty:         { alignItems: "center", justifyContent: "center", gap: space[3], paddingTop: space[10] * 2 },
   editorContent: { paddingHorizontal: GUTTER, paddingTop: space[4], gap: SECTION_GAP },

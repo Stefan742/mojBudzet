@@ -18,10 +18,9 @@ import { v4 as uuid } from "uuid";
 import { useAppStore, persistedSnapshot } from "../store/useAppStore";
 import { buildExport } from "../store/backup";
 import { useTheme } from "../hooks/useTheme";
-import { Category, categoryLabel, incomeForMonth, monthKey } from "../models";
+import { Category, categoryLabel } from "../models";
 import { formatAmount, validateAmount } from "../utils/money";
 import { amountErrorText, amountKeyboard, useCurrency } from "../hooks/useCurrency";
-import { dateLocale, monthStart } from "../utils/dates";
 import { haptics } from "../utils/haptics";
 import { ModalHeader } from "@/components/ModalHeader";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
@@ -43,7 +42,7 @@ function RowTile({ icon, color }: { icon: IconName; color: string }) {
 }
 
 export default function SettingsScreen() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const router = useRouter();
 
@@ -54,11 +53,7 @@ export default function SettingsScreen() {
   const setCurrency       = useAppStore((s) => s.setCurrency);
   // Once there are transactions the currency is fixed: they would change meaning.
   const currencyLocked    = useAppStore((s) => s.transactions.length > 0);
-  const setMonthlyIncome  = useAppStore((s) => s.setMonthlyIncome);
-  // Read through a selector so it is re-evaluated on every render;
-  // React Compiler would cache a plain `new Date()` in render.
-  const thisMonth         = useAppStore(() => monthKey(new Date()));
-  const monthlyIncome     = useAppStore((s) => incomeForMonth(s.incomeSchedule, thisMonth));
+  const repeatingCount    = useAppStore((s) => s.recurring.length);
   const storedTheme       = useAppStore((s) => s.theme);
   const setTheme          = useAppStore((s) => s.setTheme);
   const storedLanguage    = useAppStore((s) => s.language);
@@ -76,11 +71,6 @@ export default function SettingsScreen() {
     haptics.warning();
     Alert.alert(t("settings.currencyLockedTitle"), t("settings.currencyLockedBody", { code: currency.code }));
   };
-
-  const monthLabel = monthStart(thisMonth).toLocaleString(dateLocale(i18n.language), {
-    month: "long",
-    year: "numeric",
-  });
 
   // The id must be created here, not during render: React Compiler caches
   // render-time values, which gave every new category the same id (KB-1).
@@ -177,14 +167,18 @@ export default function SettingsScreen() {
             onSave={setInitialBalance}
           />
           <Separator />
-          <AmountRow
-            key={`income-${currency.code}`}
-            label={t("settings.monthlyIncome")}
-            value={monthlyIncome}
-            placeholder={t("settings.notSet")}
-            hint={t("settings.monthlyIncomeHint", { month: monthLabel })}
-            onSave={setMonthlyIncome}
-          />
+          {/* The salary is a repeating income now; planning reads it from there. */}
+          <PressableRow
+            style={styles.row}
+            onPress={() => router.push("/repeating")}
+            accessibilityRole="button"
+            accessibilityHint={t("settings.repeatingHint")}
+          >
+            <Text style={[type.body, styles.rowLabel, { color: colors.text }]}>{t("repeating.title")}</Text>
+            <Text style={[type.body, { color: colors.textSecondary }]}>{repeatingCount || ""}</Text>
+            <Icon name="chevronForward" size={14} color={colors.textTertiary} />
+          </PressableRow>
+          <Text style={[type.footnote, styles.rowFooter, { color: colors.textSecondary }]}>{t("settings.repeatingHint")}</Text>
         </Section>
 
         <Section title={t("settings.appearance")}>

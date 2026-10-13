@@ -1,11 +1,11 @@
-import type { Category, PersistedState } from "../models";
+import { TransactionKind, firstAfter, type Category, type PersistedState, type RecurringRule } from "../models";
 import { defaultCategories } from "../models/Category";
 import { monthKey } from "../utils/dates";
 import { LEGACY_COLOR_MAP } from "../constants/palette";
 import { DEFAULT_CURRENCY, isCurrencyCode } from "../constants/currencies";
 
 /** Bump when the persisted shape changes, and add a step to migratePersistedState. */
-export const STORE_VERSION = 5;
+export const STORE_VERSION = 6;
 
 /**
  * Repairs categories that were saved with a shared id (KB-1).
@@ -100,7 +100,7 @@ type Loose = Record<string, any>;
 export function migratePersistedState(
   persisted: unknown,
   fromVersion: number,
-  deps: { newId: () => string; now: Date }
+  deps: { newId: () => string; now: Date; salaryName?: string }
 ): Partial<PersistedState> {
   const s: Loose = { ...(persisted as Loose) };
 
@@ -160,6 +160,36 @@ export function migratePersistedState(
   if (fromVersion < 5 && Array.isArray(s.categories)) {
     // Transport and fuel, subscriptions and entertainment become built-in.
     s.categories = addDefaultSubcategories(s.categories, ["sub-transport", "sub-subscriptions", "sub-entertainment"]);
+  }
+
+  if (fromVersion < 6) {
+    // The planned "monthly income" becomes a repeating salary that asks
+    // before it is added, starting next month (this month's is in the balance).
+    const month = monthKey(deps.now);
+    const current = ((s.incomeSchedule ?? []) as Loose[])
+      .filter((e) => typeof e.effectiveFrom === "string" && e.effectiveFrom <= month)
+      .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
+    const amount = current ? whole(current.amount) : 0;
+    const rules: RecurringRule[] = Array.isArray(s.recurring) ? s.recurring : [];
+    if (amount > 0 && !rules.some((r) => r.kind === TransactionKind.INCOME)) {
+      rules.push({
+        id: deps.newId(),
+        kind: TransactionKind.INCOME,
+        merchant: deps.salaryName ?? "",
+        amount,
+        variable: false,
+        incomeType: "salary",
+        note: "",
+        frequency: "monthly",
+        day: 1,
+        ask: true,
+        paused: false,
+        nextDate: firstAfter({ frequency: "monthly", day: 1 }, deps.now),
+      });
+    }
+    s.recurring = rules;
+    delete s.incomeSchedule;
+    if (typeof s.remindersEnabled !== "boolean") s.remindersEnabled = true;
   }
 
   return s as Partial<PersistedState>;

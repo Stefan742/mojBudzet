@@ -1,6 +1,8 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/hooks/useTheme";
+import { useAppStore } from "@/store/useAppStore";
+import { dateKey, isDue } from "@/models";
 
 /**
  * The system tab bar (DESIGN.md §4.1): Liquid Glass on iOS 26, Material
@@ -10,12 +12,18 @@ import { useTheme } from "@/hooks/useTheme";
 export default function TabLayout() {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  // Repeating transactions waiting to be added: a badge on Overview, where they are.
+  const dueCount = useAppStore((s) => {
+    const today = dateKey(new Date());
+    return s.recurring.filter((r) => isDue(r, today)).length;
+  });
 
   return (
     <NativeTabs minimizeBehavior="onScrollDown" tintColor={colors.accent}>
       <NativeTabs.Trigger name="(overview)">
         <NativeTabs.Trigger.Label>{t("tabs.overview")}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: "chart.pie", selected: "chart.pie.fill" }} md="pie_chart" />
+        <NativeTabs.Trigger.Badge hidden={dueCount === 0}>{String(dueCount)}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="history">
         <NativeTabs.Trigger.Label>{t("tabs.history")}</NativeTabs.Trigger.Label>

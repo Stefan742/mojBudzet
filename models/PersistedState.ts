@@ -2,7 +2,7 @@ import { Category } from "./Category";
 import { Transaction } from "./Transaction";
 import { CategoryBudget } from "./Budget";
 import { SavingsGoal } from "./SavingsGoal";
-import { IncomeEntry } from "./Income";
+import { RecurringRule } from "./Recurring";
 import type { CurrencyCode } from "../constants/currencies";
 
 /**
@@ -18,8 +18,11 @@ export interface PersistedState {
   /** Opening balance entered at onboarding. */
   initialBalance: number;
 
-  /** Monthly income by the month it applies from; see models/Income.ts. */
-  incomeSchedule: IncomeEntry[];
+  /** Repeating transactions (rent, subscriptions, the salary); see models/Recurring.ts. */
+  recurring: RecurringRule[];
+
+  /** Local reminders on the day a repeating transaction is due. */
+  remindersEnabled: boolean;
 
   categories: Category[];
 

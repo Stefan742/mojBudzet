@@ -40,6 +40,9 @@ export interface Transaction {
   /** For INCOME only: where it came from. */
   incomeType?: IncomeType;
 
+  /** Added from this repeating transaction (models/Recurring.ts). */
+  recurringId?: string;
+
   /** For SAVINGS: the goal the money went to; undefined means the vault. */
   goalId?: string;
 

@@ -33,6 +33,8 @@ export const ICONS = {
   money:          { ios: "banknote",                      android: "payments",               ion: "cash-outline" },
   flag:           { ios: "flag",                          android: "flag",                   ion: "flag-outline" },
   calendar:       { ios: "calendar",                      android: "calendar_today",         ion: "calendar-outline" },
+  repeat:         { ios: "repeat",                        android: "repeat",                 ion: "repeat" },
+  bell:           { ios: "bell",                          android: "notifications",          ion: "notifications-outline" },
   gear:           { ios: "gearshape",                     android: "settings",               ion: "settings-outline" },
   share:          { ios: "square.and.arrow.up",           android: "share",                  ion: "share-outline" },
   sun:            { ios: "sun.max",                       android: "light_mode",             ion: "sunny-outline" },

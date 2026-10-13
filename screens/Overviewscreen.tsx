@@ -20,6 +20,7 @@ import { useMotion } from "@/hooks/useMotion";
 import { Icon } from "@/components/Icon";
 import { Section, Separator } from "@/components/ui/Section";
 import { PressableRow } from "@/components/ui/Pressables";
+import { DueSection } from "@/components/recurring/DueSection";
 import { dataColor } from "@/constants/palette";
 import { GUTTER, ROW_MIN, SECTION_GAP, corners, elevation, inputType, money, radius, space, type } from "@/constants/design";
 
@@ -302,6 +303,9 @@ export default function OverviewScreen() {
             ))}
           </View>
         </View>
+
+        {/* Repeating transactions due now and this week; nothing when there are none. */}
+        <DueSection />
 
         {/* Month */}
         <View style={styles.monthPicker}>

@@ -124,3 +124,24 @@ describe("migratePersistedState to v4 (currencies)", () => {
     expect(migratePersistedState({ currency: "XYZ" }, 3, deps).currency).toBe("MKD");
   });
 });
+
+describe("migratePersistedState to v6 (repeating transactions)", () => {
+  const deps = { newId: () => "salary", now: new Date(2026, 9, 13), salaryName: "Плата" };
+
+  it("turns the monthly income in effect into a salary that asks, from next month", () => {
+    const out = migratePersistedState(
+      { incomeSchedule: [{ effectiveFrom: "2026-08", amount: 30000 }, { effectiveFrom: "2026-10", amount: 35000 }, { effectiveFrom: "2027-01", amount: 99 }] },
+      5,
+      deps
+    );
+    expect(out.recurring).toEqual([
+      expect.objectContaining({ id: "salary", merchant: "Плата", amount: 35000, incomeType: "salary", ask: true, day: 1, nextDate: "2026-11-01" }),
+    ]);
+    expect("incomeSchedule" in out).toBe(false);
+    expect(out.remindersEnabled).toBe(true);
+  });
+
+  it("adds nothing without an income", () => {
+    expect(migratePersistedState({ incomeSchedule: [] }, 5, deps).recurring).toEqual([]);
+  });
+});

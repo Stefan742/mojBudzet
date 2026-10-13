@@ -21,6 +21,7 @@ import { Icon } from '@/components/Icon';
 import { space, type } from '@/constants/design';
 import { useTheme } from '@/hooks/useTheme';
 import { useLargeTitleOptions } from '@/hooks/useLargeTitleOptions';
+import { useRepeating } from '@/hooks/useRepeating';
 
 const subscribeHydration = (onChange: () => void) => useAppStore.persist.onFinishHydration(onChange);
 const getHydrated = () => useAppStore.persist.hasHydrated();
@@ -68,12 +69,19 @@ export default function RootLayout() {
           />
         </Stack>
         <ToastHost />
+        <RepeatingRunner />
         </NavigationThemeProvider>
       ) : (
         <LoadingScreen />
       )}
     </ThemeProvider>
   );
+}
+
+/** Repeating transactions and their reminders; only once saved data has loaded. */
+function RepeatingRunner() {
+  useRepeating();
+  return null;
 }
 
 /** Shown instead of a white screen if a render error escapes a screen (R-10). */

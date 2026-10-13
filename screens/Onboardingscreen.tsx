@@ -16,7 +16,8 @@ import { amountErrorText, amountKeyboard, useCurrency } from "../hooks/useCurren
 import { haptics } from "../utils/haptics";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/Button";
-import { Section } from "@/components/ui/Section";
+import { Section, Separator } from "@/components/ui/Section";
+import { DateField } from "@/components/DateField";
 import { PressableRow } from "@/components/ui/Pressables";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { GUTTER, ROW_MIN, SECTION_GAP, corners, inputType, money, radius, space, tint, type } from "@/constants/design";
@@ -33,6 +34,8 @@ export default function OnboardingScreen() {
   const [incomeText, setIncomeText]   = useState("");
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [incomeError, setIncomeError]   = useState<string | null>(null);
+  // The salary becomes a repeating income, asked for on this day each month.
+  const [payday, setPayday]             = useState(() => new Date());
 
   // Returns the amount, or an error message for the field.
   const validate = (text: string, allowZero: boolean): number | string => {
@@ -42,7 +45,7 @@ export default function OnboardingScreen() {
 
   const handleContinue = () => {
     const balance = validate(balanceText, true);
-    // Income is optional; it can be set later in Settings.
+    // Income is optional; it can be set later in Settings › Repeating.
     const income = incomeText.trim() === "" ? 0 : validate(incomeText, false);
     setBalanceError(typeof balance === "string" ? balance : null);
     setIncomeError(typeof income === "string" ? income : null);
@@ -52,7 +55,10 @@ export default function OnboardingScreen() {
     }
     haptics.success();
     // The root layout's protected routes switch to the tabs once onboarded.
-    completeOnboarding(balance, income);
+    completeOnboarding(
+      balance,
+      income > 0 ? { amount: income, day: payday.getDate(), name: t("incomeTypes.salary") } : undefined
+    );
   };
 
   const fields = [
@@ -132,6 +138,12 @@ export default function OnboardingScreen() {
                 />
                 <Text style={[type.title3, { color: colors.textSecondary }]}>{currency.label}</Text>
               </View>
+              {f.key === "income" && incomeText.trim() !== "" && (
+                <>
+                  <Separator />
+                  <DateField label={t("onboarding.payday")} value={payday} onChange={setPayday} />
+                </>
+              )}
             </Section>
           ))}
         </View>
