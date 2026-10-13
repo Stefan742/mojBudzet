@@ -6,7 +6,7 @@ import { CURRENCIES, type CurrencyCode } from "../constants/currencies";
  * integers are exact, so no floating-point rounding can creep into totals.
  */
 
-const NBSP = " ";
+const NBSP = "\u00A0";
 
 /** How amounts are read and shown: the app currency in the app language. */
 export interface MoneyFormat {

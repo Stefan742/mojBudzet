@@ -1,7 +1,7 @@
 import { CURRENCIES, CURRENCY_CODES } from "../constants/currencies";
 import { formatAmount, formatMoney, moneyFormat, parseAmount, validateAmount } from "../utils/money";
 
-const NBSP = " ";
+const NBSP = "\u00A0";
 const mkd = moneyFormat("MKD", "mk", "МКД");
 const eurMk = moneyFormat("EUR", "mk", "€");
 const eurEn = moneyFormat("EUR", "en", "€");
