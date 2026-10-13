@@ -70,6 +70,12 @@ export const defaultCategories: Category[] = [
           "pregled", "преглед", "zabolekar","zegin", "alkaloid", "zhiva farm", "eurofarm"
         ],
       },
+      {
+        id: "sub-transport",
+        nameKey: "subcategories.sub-transport",
+        name: "Транспорт и гориво",
+        keywords: ["бензин", "gorivo", "taksi", "parking"],
+      },
     ],
   },
   {
@@ -94,6 +100,18 @@ export const defaultCategories: Category[] = [
         keywords: [
           "restaurant", "pizza", "burger", "kfc", "mcdonald", "cafe", "bar", "jadenje",
         ],
+      },
+      {
+        id: "sub-subscriptions",
+        nameKey: "subcategories.sub-subscriptions",
+        name: "Претплати",
+        keywords: ["netflix", "spotify", "pretplata"],
+      },
+      {
+        id: "sub-entertainment",
+        nameKey: "subcategories.sub-entertainment",
+        name: "Забава",
+        keywords: ["kino", "teatar", "koncert"],
       },
     ],
   },

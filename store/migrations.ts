@@ -5,7 +5,7 @@ import { LEGACY_COLOR_MAP } from "../constants/palette";
 import { DEFAULT_CURRENCY, isCurrencyCode } from "../constants/currencies";
 
 /** Bump when the persisted shape changes, and add a step to migratePersistedState. */
-export const STORE_VERSION = 4;
+export const STORE_VERSION = 5;
 
 /**
  * Repairs categories that were saved with a shared id (KB-1).
@@ -77,6 +77,20 @@ export function refreshDefaultCategories(categories: Category[]): Category[] {
   });
 }
 
+/**
+ * Adds built-in subcategories introduced in a later version to the saved copy
+ * of their parent category. Runs once (from a migration step), so one the
+ * user deletes afterwards stays deleted.
+ */
+export function addDefaultSubcategories(categories: Category[], ids: string[]): Category[] {
+  return categories.map((c) => {
+    const def = defaultsById.get(c.id);
+    if (!def) return c;
+    const missing = def.subcategories.filter((s) => ids.includes(s.id) && !c.subcategories.some((x) => x.id === s.id));
+    return missing.length ? { ...c, subcategories: [...c.subcategories, ...missing.map((s) => ({ ...s }))] } : c;
+  });
+}
+
 const whole = (n: unknown): number =>
   typeof n === "number" && Number.isFinite(n) ? Math.round(n) : 0;
 
@@ -141,6 +155,11 @@ export function migratePersistedState(
     // Currencies arrive. Everything saved so far is whole denars, which is
     // exactly how MKD amounts are stored, so only the field is added.
     if (!isCurrencyCode(s.currency)) s.currency = DEFAULT_CURRENCY;
+  }
+
+  if (fromVersion < 5 && Array.isArray(s.categories)) {
+    // Transport and fuel, subscriptions and entertainment become built-in.
+    s.categories = addDefaultSubcategories(s.categories, ["sub-transport", "sub-subscriptions", "sub-entertainment"]);
   }
 
   return s as Partial<PersistedState>;

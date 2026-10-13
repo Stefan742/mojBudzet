@@ -85,7 +85,9 @@
     "saveShort": "Зачувај",
     "source": "Извор",
     "payer": "Од кого (на пр. работодавач, клиент)",
-    "payerLabel": "Од"
+    "payerLabel": "Од",
+    "suggestions": "Предлози",
+    "fromHistory": "Исто како последниот пат на ова место."
   },
   "budget": {
     "title": "Буџет",
@@ -279,7 +281,10 @@
     "sub-restaurants": "Ресторани",
     "sub-stocks": "Акции",
     "sub-crypto": "Крипто",
-    "sub-unexpected": "Непредвидени"
+    "sub-unexpected": "Непредвидени",
+    "sub-transport": "Транспорт и гориво",
+    "sub-subscriptions": "Претплати",
+    "sub-entertainment": "Забава"
   },
   "a11y": {
     "prevMonth": "Претходен месец",

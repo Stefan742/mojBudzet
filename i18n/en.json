@@ -85,7 +85,9 @@
     "saveShort": "Save",
     "source": "Source",
     "payer": "From (e.g. employer, client)",
-    "payerLabel": "From"
+    "payerLabel": "From",
+    "suggestions": "Suggestions",
+    "fromHistory": "Same as last time at this place."
   },
   "budget": {
     "title": "Budget",
@@ -279,7 +281,10 @@
     "sub-restaurants": "Restaurants",
     "sub-stocks": "Stocks",
     "sub-crypto": "Crypto",
-    "sub-unexpected": "Unexpected"
+    "sub-unexpected": "Unexpected",
+    "sub-transport": "Transport and fuel",
+    "sub-subscriptions": "Subscriptions",
+    "sub-entertainment": "Entertainment"
   },
   "a11y": {
     "prevMonth": "Previous month",

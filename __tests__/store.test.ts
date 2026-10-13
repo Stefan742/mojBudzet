@@ -1,6 +1,7 @@
 import { useAppStore, persistedSnapshot } from "../store/useAppStore";
 import { balanceOf, leftoverOf, monthTotals } from "../store/selectors";
 import { buildExport } from "../store/backup";
+import { STORE_VERSION } from "../store/migrations";
 import { TransactionKind, monthKey } from "../models";
 import { monthEnd } from "../utils/dates";
 
@@ -117,7 +118,7 @@ describe("export (R-11)", () => {
     store().saveFromBalance(100, null, "");
     const parsed = JSON.parse(buildExport(persistedSnapshot(), new Date(2026, 9, 6)));
     expect(parsed.app).toBe("mojbudzet");
-    expect(parsed.storeVersion).toBe(4);
+    expect(parsed.storeVersion).toBe(STORE_VERSION);
     expect(parsed.data.currency).toBe("MKD");
     expect(parsed.data.vaultAmount).toBe(100);
     expect(parsed.data.transactions).toHaveLength(1);
