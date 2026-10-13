@@ -17,7 +17,6 @@ import { useTranslation } from "react-i18next";
 import { v4 as uuid } from "uuid";
 import { useAppStore, persistedSnapshot } from "../store/useAppStore";
 import { buildExport } from "../store/backup";
-import { ModelStore } from "../services/categorizer/storage";
 import { useTheme } from "../hooks/useTheme";
 import { Category, categoryLabel, incomeForMonth, monthKey } from "../models";
 import { formatAmount, validateAmount } from "../utils/money";
@@ -106,11 +105,8 @@ export default function SettingsScreen() {
       {
         text: t("settings.deleteAllConfirm"),
         style: "destructive",
-        onPress: async () => {
-          // Also forget what the categorizer learned from this user.
-          await new ModelStore().clearAll().catch(() => undefined);
-          resetAll();
-        },
+        // Suggestions learn from the transactions, so this forgets them too.
+        onPress: () => resetAll(),
       },
     ]);
   };

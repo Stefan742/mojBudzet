@@ -5,7 +5,6 @@ import {
   TextInput,
   ScrollView,
   StyleSheet,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Switch,
@@ -19,7 +18,8 @@ import { useAppStore } from "../store/useAppStore";
 import { showToast } from "../store/session";
 import { INCOME_TYPES, IncomeType, TransactionKind, categoryLabel } from "../models";
 import { findCategory } from "../store/selectors";
-import { useMLCategorizer } from "../services/categorizer/useMLCategorizer";
+import { useCategorizer } from "../services/categorizer/useCategorizer";
+import type { Suggestion, SuggestionSource } from "../services/categorizer/categorize";
 import { v4 as uuid } from "uuid";
 import { haptics } from "../utils/haptics";
 import { useTheme } from "@/hooks/useTheme";
@@ -31,11 +31,11 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/Button";
 import { Section, Separator } from "@/components/ui/Section";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { MARKET_DATASET_CSV } from "../assets/datasets/market_dataset";
 import { GUTTER, ROW_MIN, SECTION_GAP, inputType, money, space, type } from "@/constants/design";
 
 const NONE = "__none__";
-const AI_DEBOUNCE_MS = 400;
+/** Suggestions are instant; the pause only avoids chips jumping while typing. */
+const SUGGEST_DEBOUNCE_MS = 250;
 /**
  * iOS keyboard toolbars that carry the Save button, one per field: React
  * Native (New Architecture) attaches an InputAccessoryView only to the first
@@ -54,7 +54,7 @@ export default function AddTransactionScreen() {
   const categories     = useAppStore((s) => s.categories);
   const currency       = useCurrency();
 
-  const { categorize, correct, isReady } = useMLCategorizer({ datasetCSV: MARKET_DATASET_CSV });
+  const suggest = useCategorizer();
 
   const [merchant, setMerchant]             = useState("");
   const amount                              = useAmountField();
@@ -67,7 +67,9 @@ export default function AddTransactionScreen() {
   const [autoSuggest, setAutoSuggest]       = useState(true);
   // Once the user picks a category by hand, suggestions no longer overwrite it.
   const [userPicked, setUserPicked]         = useState(false);
-  const [isCategorizing, setIsCategorizing] = useState(false);
+  // Where the filled-in category came from, and candidates when it was unsure.
+  const [suggestedFrom, setSuggestedFrom]   = useState<SuggestionSource | null>(null);
+  const [alternatives, setAlternatives]     = useState<Suggestion[]>([]);
 
   // B-13: only the latest request may apply its result, and nothing applies
   // after the form was saved or the screen unmounted.
@@ -79,7 +81,11 @@ export default function AddTransactionScreen() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = null;
     requestRef.current += 1;
-    setIsCategorizing(false);
+  };
+
+  const clearSuggestion = () => {
+    setSuggestedFrom(null);
+    setAlternatives([]);
   };
 
   useEffect(() => () => {
@@ -89,20 +95,19 @@ export default function AddTransactionScreen() {
 
   // Categories are for spending; income gets a source instead, picked by hand.
   const scheduleSuggestion = (newMerchant: string, newNote: string, forKind = kind) => {
-    if (forKind !== TransactionKind.EXPENSE || !autoSuggest || !isReady || userPicked) return;
+    if (forKind !== TransactionKind.EXPENSE || !autoSuggest || userPicked) return;
     cancelSuggestion();
-    if (!newMerchant.trim()) return;
     const request = requestRef.current;
-    debounceRef.current = setTimeout(async () => {
-      setIsCategorizing(true);
-      const res = await categorize(newMerchant, newNote, categories);
+    debounceRef.current = setTimeout(() => {
       if (request !== requestRef.current) return;
-      if (res.confidence > 0.05) {
-        setCategoryId(res.categoryId);
-        setSubcategoryId(res.subcategoryId);
-      }
-      setIsCategorizing(false);
-    }, AI_DEBOUNCE_MS);
+      // When unsure it fills in nothing (and clears an earlier guess):
+      // a wrong category is worse than none.
+      const { best, alternatives: candidates } = suggest(newMerchant, newNote);
+      setCategoryId(best?.categoryId);
+      setSubcategoryId(best?.subcategoryId);
+      setSuggestedFrom(best?.source ?? null);
+      setAlternatives(best ? [] : candidates);
+    }, SUGGEST_DEBOUNCE_MS);
   };
 
   const handleMerchantChange = (text: string) => {
@@ -122,11 +127,13 @@ export default function AddTransactionScreen() {
       scheduleSuggestion(merchant, note);
     } else {
       cancelSuggestion();
+      clearSuggestion();
     }
   };
 
   const pickCategory = (key: string) => {
     cancelSuggestion();
+    clearSuggestion();
     setUserPicked(true);
     setCategoryId(key === NONE ? undefined : key);
     setSubcategoryId(undefined);
@@ -134,17 +141,33 @@ export default function AddTransactionScreen() {
 
   const pickSubcategory = (key: string) => {
     cancelSuggestion();
+    clearSuggestion();
     setUserPicked(true);
-    const subId = key === NONE ? undefined : key;
-    setSubcategoryId(subId);
-    // Teach the model from a correction, when there is a merchant to learn from.
-    if (subId && merchant.trim()) correct(merchant, note, subId);
+    setSubcategoryId(key === NONE ? undefined : key);
+  };
+
+  // No separate "teaching": the saved transaction is what later suggestions learn from.
+  const pickAlternative = (s: Suggestion) => {
+    cancelSuggestion();
+    clearSuggestion();
+    setUserPicked(true);
+    setCategoryId(s.categoryId);
+    setSubcategoryId(s.subcategoryId);
+  };
+
+  const alternativeLabel = (s: Suggestion) => {
+    const cat = findCategory(categories, s.categoryId);
+    const sub = cat?.subcategories.find((x) => x.id === s.subcategoryId);
+    return sub ? categoryLabel(sub, t) : cat ? categoryLabel(cat, t) : "";
   };
 
   const changeKind = (next: TransactionKind) => {
     setKind(next);
     if (next === TransactionKind.EXPENSE) scheduleSuggestion(merchant, note, next);
-    else cancelSuggestion();
+    else {
+      cancelSuggestion();
+      clearSuggestion();
+    }
   };
 
   const pickIncomeType = (key: string) => {
@@ -182,6 +205,7 @@ export default function AddTransactionScreen() {
     setSubcategoryId(undefined);
     setIncomeType(undefined);
     setUserPicked(false);
+    clearSuggestion();
     Keyboard.dismiss();
     haptics.success();
     showToast(t("add.saved"));
@@ -189,9 +213,10 @@ export default function AddTransactionScreen() {
 
   const selectedCat = findCategory(categories, categoryId);
   const hint =
-    !categoryId && kind === TransactionKind.EXPENSE
-      ? autoSuggest && !merchant.trim() ? t("add.aiHint") : t("add.noCategoryHint")
-      : null;
+    kind !== TransactionKind.EXPENSE ? null
+    : categoryId ? (suggestedFrom === "history" ? t("add.fromHistory") : null)
+    : autoSuggest && !merchant.trim() ? t("add.aiHint")
+    : t("add.noCategoryHint");
 
   const form = (
     <ScrollView
@@ -270,8 +295,7 @@ export default function AddTransactionScreen() {
             <Text style={[type.body, styles.switchLabel, { color: colors.text }]} numberOfLines={1}>
               {t("add.autoSuggestShort")}
             </Text>
-            {isCategorizing && <ActivityIndicator size="small" color={colors.accent} />}
-            {/* Fixed slot: the iOS 26 switch is larger than the frame React Native
+              {/* Fixed slot: the iOS 26 switch is larger than the frame React Native
                 reserves for it, so centre it in a known box instead of letting it drift. */}
             <View style={styles.switchSlot}>
               <Switch
@@ -283,6 +307,22 @@ export default function AddTransactionScreen() {
             </View>
           </View>
           <Separator />
+          {alternatives.length > 0 && (
+            <>
+              <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("add.suggestions")}</Text>
+              <ChipRow
+                accessibilityLabel={t("add.suggestions")}
+                chips={alternatives.map((s, i) => ({
+                  key: String(i),
+                  label: alternativeLabel(s),
+                  color: findCategory(categories, s.categoryId)?.colorHex,
+                }))}
+                selectedKey={undefined}
+                onSelect={(key) => pickAlternative(alternatives[Number(key)])}
+              />
+              <Separator />
+            </>
+          )}
           <Text style={[type.footnote, styles.pickerLabel, { color: colors.textSecondary }]}>{t("add.sections.category")}</Text>
           <ChipRow
             accessibilityLabel={t("add.sections.category")}

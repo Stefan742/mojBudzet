@@ -13,6 +13,7 @@ import {
 } from "../models";
 import { defaultCategories } from "../models/Category";
 import { CURRENCIES, DEFAULT_CURRENCY, type CurrencyCode } from "../constants/currencies";
+import { clearLegacyCategorizerData } from "../services/categorizer/legacy";
 import {
   STORE_VERSION,
   migratePersistedState,
@@ -311,6 +312,8 @@ export const useAppStore = create<AppStoreState>()(
       // Apply the saved language before the first screen renders (B-3).
       onRehydrateStorage: () => (state) => {
         if (state?.language) i18n.changeLanguage(state.language);
+        // The old categorizer kept its own copy of what it learned; no longer used.
+        void clearLegacyCategorizerData();
       },
     }
   )
