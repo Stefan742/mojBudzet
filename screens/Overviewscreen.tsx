@@ -21,6 +21,7 @@ import { Icon } from "@/components/Icon";
 import { Section, Separator } from "@/components/ui/Section";
 import { PressableRow } from "@/components/ui/Pressables";
 import { DueSection } from "@/components/recurring/DueSection";
+import { RepeatTips } from "@/components/recurring/RepeatTips";
 import { dataColor } from "@/constants/palette";
 import { GUTTER, ROW_MIN, SECTION_GAP, corners, elevation, inputType, money, radius, space, type } from "@/constants/design";
 
@@ -306,6 +307,9 @@ export default function OverviewScreen() {
 
         {/* Repeating transactions due now and this week; nothing when there are none. */}
         <DueSection />
+
+        {/* Shows that repeating exists: a suggestion from history, or a one-time tip. */}
+        <RepeatTips />
 
         {/* Month */}
         <View style={styles.monthPicker}>

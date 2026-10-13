@@ -443,5 +443,17 @@
     "notifyBody": "{{amount}} is due today. Open the app to add it.",
     "notifyIncome": "Did {{amount}} arrive? Open the app to add it.",
     "notifyVariable": "Due today. Open the app to enter this time's amount."
+  },
+  "repeatTips": {
+    "introTitle": "Set up what repeats",
+    "introBody": "Rent, bills, subscriptions and your salary: add them once, and the app asks you on the day.",
+    "setUp": "Set up",
+    "notNow": "Not now",
+    "close": "Close tip",
+    "detectedTitle": "{{name}} looks like it repeats",
+    "detectedBody_one": "{{amount}} around day {{day}}, {{count}} month in a row. Make it repeating, so you are asked next time?",
+    "detectedBody_other": "{{amount}} around day {{day}}, {{count}} months in a row. Make it repeating, so you are asked next time?",
+    "detectedBodyVaries_one": "About {{amount}} around day {{day}}, {{count}} month in a row. Make it repeating, so you are asked for the amount next time?",
+    "detectedBodyVaries_other": "About {{amount}} around day {{day}}, {{count}} months in a row. Make it repeating, so you are asked for the amount next time?"
   }
 }

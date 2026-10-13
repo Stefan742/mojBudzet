@@ -101,6 +101,8 @@ interface Actions {
   addDueOccurrences: (ids: string[], todayKey: string) => RecurringUndo | null;
   undoRecurring: (undo: RecurringUndo) => void;
   setRemindersEnabled: (on: boolean) => void;
+  /** Never show this tip or suggestion again. */
+  dismissTip: (key: string) => void;
 
   /** Marks a month's leftover as handled so the prompt is not shown again. */
   markRolloverDone: (month: string) => void;
@@ -121,6 +123,7 @@ const initialState: PersistedState = {
   initialBalance: 0,
   recurring: [],
   remindersEnabled: true,
+  dismissedTips: [],
   categories: defaultCategories,
   transactions: [],
   budgets: [],
@@ -406,6 +409,9 @@ export const useAppStore = create<AppStoreState>()(
         })),
 
       setRemindersEnabled: (on) => set({ remindersEnabled: on }),
+
+      dismissTip: (key) =>
+        set((s) => (s.dismissedTips.includes(key) ? {} : { dismissedTips: [...s.dismissedTips, key] })),
 
       markRolloverDone: (month) => set({ lastRolloverMonth: month }),
 

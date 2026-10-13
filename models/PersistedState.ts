@@ -24,6 +24,12 @@ export interface PersistedState {
   /** Local reminders on the day a repeating transaction is due. */
   remindersEnabled: boolean;
 
+  /**
+   * Tips and suggestions the user closed ("repeating-intro", or a suggested
+   * repeating merchant). Missing in older saves: the default (none) applies.
+   */
+  dismissedTips: string[];
+
   categories: Category[];
 
   transactions: Transaction[];
