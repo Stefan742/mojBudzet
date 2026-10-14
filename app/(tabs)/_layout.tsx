@@ -1,7 +1,10 @@
+import { useEffect } from "react";
+import { router, type Href } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/hooks/useTheme";
 import { useAppStore } from "@/store/useAppStore";
+import { useSession } from "@/store/session";
 import { dateKey, isDue } from "@/models";
 
 /**
@@ -12,6 +15,14 @@ import { dateKey, isDue } from "@/models";
 export default function TabLayout() {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  // Onboarding ends by asking for a tab ("Add your first expense"): go there once mounted.
+  const pendingRoute = useSession((s) => s.pendingRoute);
+  useEffect(() => {
+    if (!pendingRoute) return;
+    useSession.getState().setPendingRoute(null);
+    router.navigate(pendingRoute as Href);
+  }, [pendingRoute]);
+
   // Repeating transactions waiting to be added: a badge on Overview, where they are.
   const dueCount = useAppStore((s) => {
     const today = dateKey(new Date());

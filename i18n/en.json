@@ -256,15 +256,88 @@
     "toastSaved": "Saved to “{{name}}”"
   },
   "onboarding": {
-    "title": "Welcome!",
-    "subtitle": "Enter how much money you have now and, if you like, your monthly income.",
-    "balanceLabel": "Current balance",
-    "balanceHint": "How much money you have right now. Your balance starts from this.",
-    "incomeLabel": "Monthly income (optional)",
-    "incomeHint": "Becomes your repeating salary: you'll be asked on payday whether it arrived. Change it in Settings › Repeating.",
+    "back": "Back",
+    "skip": "Skip",
+    "next": "Next",
     "continue": "Continue",
-    "currencyHint": "All amounts in the app are in this currency. You can change it until you add your first transaction.",
-    "payday": "Payday"
+    "notNow": "Not now",
+    "page": "Page {{current}} of {{total}}",
+    "step": "Step {{current}} of {{total}}",
+    "dayOfMonth": "Day {{day}}",
+    "welcome": {
+      "title": "Your money, clear and calm",
+      "body": "Track spending, plan your month and save. No account, no ads.",
+      "start": "Get started"
+    },
+    "track": {
+      "title": "Add in seconds",
+      "body": "Type where you paid. The app suggests the category and learns from your choices.",
+      "sampleMerchant": "Vero"
+    },
+    "plan": {
+      "title": "See where your money goes",
+      "body": "Budgets per category, a reminder for rent and bills on the day, and a choice for what's left at month end."
+    },
+    "private": {
+      "title": "Your data stays with you",
+      "body": "No sign-in, and nothing is sent over the internet. Suggestions are worked out on your phone.",
+      "noAccount": "No account",
+      "noAds": "No ads or tracking",
+      "onDevice": "Only on your phone",
+      "start": "Let's set it up"
+    },
+    "balance": {
+      "title": "How much money do you have?",
+      "body": "Your account and cash together, today. The app counts from here.",
+      "hint": "You can change it later in Settings."
+    },
+    "salary": {
+      "title": "When does your salary come?",
+      "body": "On payday the app asks whether it arrived, so your balance stays right.",
+      "amount": "Salary",
+      "payday": "Payday",
+      "paydayHint": "Asked on day {{day}} of each month. Months that are shorter use their last day."
+    },
+    "bills": {
+      "title": "What do you pay every month?",
+      "body": "Pick what applies. On the day the app reminds you and asks before anything is added.",
+      "rent": "Rent",
+      "electricity": "Electricity",
+      "water": "Water",
+      "internet": "Internet and phone",
+      "netflix": "Netflix",
+      "spotify": "Spotify",
+      "gym": "Gym",
+      "loan": "Loan",
+      "day": "Day of the month",
+      "usual": "Usual (optional)",
+      "amountRequired": "Enter the amount, or turn on Amount changes."
+    },
+    "budget": {
+      "title": "Shall we make a budget?",
+      "body": "Your salary split by the 50/25/15/10 rule: needs, wants, investments and a safety net.",
+      "footer": "Every limit can be changed later in Budget.",
+      "apply": "Use this budget"
+    },
+    "reminders": {
+      "title": "A reminder on the day",
+      "body": "One notification at 9:00 when something is due. Nothing else, and no marketing.",
+      "turnOn": "Turn on reminders",
+      "later": "Maybe later"
+    },
+    "done": {
+      "title": "You're all set",
+      "balance": "Balance · {{amount}}",
+      "salary": "Salary · {{amount}} on day {{day}}",
+      "bills_one": "{{count}} repeating payment",
+      "bills_other": "{{count}} repeating payments",
+      "budget_one": "Budget for {{count}} category",
+      "budget_other": "Budget for {{count}} categories",
+      "reminders": "Reminders on",
+      "footer": "Everything can be changed in Settings.",
+      "addFirst": "Add your first expense",
+      "overview": "Go to Overview"
+    }
   },
   "common": {
     "cancel": "Cancel",
