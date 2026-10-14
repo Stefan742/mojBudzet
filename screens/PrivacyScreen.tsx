@@ -5,9 +5,13 @@ import { useTheme } from "@/hooks/useTheme";
 import { GUTTER, space, type } from "@/constants/design";
 import { CONTACT_EMAIL } from "@/constants/app";
 
-const SECTIONS = ["data", "storage", "backups", "sharing", "suggestions", "rights", "children", "changes"] as const;
+const SECTIONS = ["data", "storage", "backups", "sharing", "suggestions", "reminders", "rights", "children", "changes"] as const;
 
-/** In-app privacy policy (R-2). The same text is in PRIVACY.md for the store listing URL. */
+/**
+ * In-app privacy policy (R-2), the source of truth: PRIVACY.md and the hosted
+ * page (privacy-site/) are generated from the same strings by
+ * `node scripts/privacy-page.js`. Keep SECTIONS in step with that script.
+ */
 export default function PrivacyScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -32,6 +36,7 @@ export default function PrivacyScreen() {
           <Text style={[type.headline, { color: colors.text }]} accessibilityRole="header">
             {t("privacy.contactTitle")}
           </Text>
+          <Text style={[type.callout, { color: colors.textSecondary }]}>{t("privacy.developer")}</Text>
           <Text style={[type.callout, { color: colors.accent }]} selectable>
             {CONTACT_EMAIL}
           </Text>

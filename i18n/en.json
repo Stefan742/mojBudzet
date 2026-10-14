@@ -378,12 +378,12 @@
   "privacy": {
     "title": "Privacy policy",
     "intro": "Moj Budzet is built to keep your finances on your own device. This page explains what data the app uses and where it is kept.",
-    "updated": "Last updated: October 2026.",
+    "updated": "Last updated: 14 October 2026.",
     "contactTitle": "Contact",
     "sections": {
       "data": {
         "title": "What you enter",
-        "body": "Transactions (merchant, amount, date, category, note), categories, budgets, savings goals, your starting balance, monthly income and settings (theme, language). The app does not ask for your name, email or phone number."
+        "body": "Transactions (merchant, amount, date, category, note), categories, budgets, savings goals, repeating payments (such as rent or your salary), your starting balance and settings (currency, theme, language). The app does not ask for your name, email or phone number."
       },
       "storage": {
         "title": "Where it is stored",
@@ -395,11 +395,15 @@
       },
       "sharing": {
         "title": "Sharing",
-        "body": "The app does not send your data anywhere. There are no ads, analytics or tracking. Your data only leaves the app when you export it."
+        "body": "The app does not send your data anywhere and works without an internet connection. There are no ads, analytics, crash reporting or tracking. Your data only leaves the app when you export it and choose where to send the file."
       },
       "suggestions": {
         "title": "Category and budget suggestions",
         "body": "Suggestions are calculated on the device from the data you enter. Nothing is sent over the internet."
+      },
+      "reminders": {
+        "title": "Reminders",
+        "body": "If you allow notifications, the app schedules reminders on this device for your repeating payments, at 9:00 on the day they are due. Your phone creates and shows them; nothing is sent to a server. Notifications are the only permission the app asks for, and you can turn reminders off in Settings at any time."
       },
       "rights": {
         "title": "Your control",
@@ -413,7 +417,8 @@
         "title": "Changes",
         "body": "If the app ever starts using data differently, this page will be updated before that happens."
       }
-    }
+    },
+    "developer": "Made by Stefan Stojanovski."
   },
   "incomeTypes": {
     "salary": "Salary",
