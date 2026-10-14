@@ -88,12 +88,7 @@
     "payer": "From (e.g. employer, client)",
     "payerLabel": "From",
     "suggestions": "Suggestions",
-    "fromHistory": "Same as last time at this place.",
-    "repeatNever": "Never",
-    "repeatNext": "Next: {{date}}.",
-    "repeatAsk": "You'll be asked on the day.",
-    "repeatAuto": "It will be added automatically.",
-    "savedRepeating": "Saved. Next on {{date}}"
+    "fromHistory": "Same as last time at this place."
   },
   "budget": {
     "title": "Budget",
@@ -509,7 +504,7 @@
     "delete": "Delete repeating",
     "deleteBody": "Transactions it already added stay in History.",
     "empty": "No repeating transactions",
-    "emptySub": "Turn on Repeat when you add a transaction, or tap + to set one up.",
+    "emptySub": "Tap + to set one up.",
     "reminders": "Remind me on the day",
     "remindersFooter": "A notification at 9:00 on the day something is due. It stays on this phone.",
     "remindersBlocked": "Notifications are turned off for this app in the phone's settings.",

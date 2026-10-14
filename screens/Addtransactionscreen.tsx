@@ -19,16 +19,9 @@ import { showToast } from "../store/session";
 import {
   INCOME_TYPES,
   IncomeType,
-  RecurringRule,
-  RepeatFrequency,
   TransactionKind,
   categoryLabel,
-  dateKey,
-  dayFromKey,
-  followingDate,
 } from "../models";
-import { formatDate } from "../utils/dates";
-import { requestReminderPermission } from "../services/reminders";
 import { findCategory } from "../store/selectors";
 import { useCategorizer } from "../services/categorizer/useCategorizer";
 import type { Suggestion, SuggestionSource } from "../services/categorizer/categorize";
@@ -60,11 +53,9 @@ const ACCESSORY = {
 } as const;
 
 export default function AddTransactionScreen() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const addTransaction = useAppStore((s) => s.addTransaction);
-  const saveRecurring  = useAppStore((s) => s.saveRecurring);
-  const remindersOn    = useAppStore((s) => s.remindersEnabled);
   const categories     = useAppStore((s) => s.categories);
   const currency       = useCurrency();
 
@@ -78,10 +69,6 @@ export default function AddTransactionScreen() {
   const [categoryId, setCategoryId]         = useState<string | undefined>();
   const [subcategoryId, setSubcategoryId]   = useState<string | undefined>();
   const [incomeType, setIncomeType]         = useState<IncomeType | undefined>();
-  // Repeat: the saved transaction becomes the first of a repeating one.
-  const [repeat, setRepeat]                 = useState<"never" | RepeatFrequency>("never");
-  const [repeatAsk, setRepeatAsk]           = useState(true);
-  const [repeatVaries, setRepeatVaries]     = useState(false);
   const [autoSuggest, setAutoSuggest]       = useState(true);
   // Once the user picks a category by hand, suggestions no longer overwrite it.
   const [userPicked, setUserPicked]         = useState(false);
@@ -193,8 +180,6 @@ export default function AddTransactionScreen() {
   };
 
   const isIncome = kind === TransactionKind.INCOME;
-  const repeatShape = { frequency: repeat === "yearly" ? "yearly" : "monthly", day: date.getDate(), month: date.getMonth() } as const;
-  const nextRepeat = repeat === "never" ? null : followingDate(repeatShape, dateKey(date));
   const canSave = merchant.trim().length > 0 && amount.text.trim().length > 0;
 
   const save = () => {
@@ -204,27 +189,6 @@ export default function AddTransactionScreen() {
       return;
     }
     cancelSuggestion();
-    const recurringId = nextRepeat ? uuid() : undefined;
-    if (recurringId && nextRepeat) {
-      const rule: RecurringRule = {
-        id: recurringId,
-        kind: isIncome ? TransactionKind.INCOME : TransactionKind.EXPENSE,
-        merchant: merchant.trim(),
-        amount: value,
-        variable: repeatVaries,
-        categoryId: isIncome ? undefined : categoryId,
-        subcategoryId: isIncome ? undefined : subcategoryId,
-        incomeType: isIncome ? incomeType : undefined,
-        note,
-        frequency: repeatShape.frequency,
-        day: repeatShape.day,
-        month: repeat === "yearly" ? repeatShape.month : undefined,
-        ask: repeatVaries ? true : repeatAsk,
-        paused: false,
-        nextDate: nextRepeat,
-      };
-      saveRecurring(rule);
-    }
     addTransaction({
       id: uuid(),
       date: date.toISOString(),
@@ -237,7 +201,6 @@ export default function AddTransactionScreen() {
       incomeType,
       note,
       source: "Рачно",
-      recurringId,
     });
     setMerchant("");
     amount.reset();
@@ -248,17 +211,9 @@ export default function AddTransactionScreen() {
     setIncomeType(undefined);
     setUserPicked(false);
     clearSuggestion();
-    setRepeat("never");
-    setRepeatAsk(true);
-    setRepeatVaries(false);
     Keyboard.dismiss();
     haptics.success();
-    showToast(
-      nextRepeat ? t("add.savedRepeating", { date: formatDate(dayFromKey(nextRepeat), i18n.language) }) : t("add.saved"),
-      nextRepeat ? "repeat" : undefined
-    );
-    // Ask for reminders at the moment they make sense: the first repeating transaction.
-    if (nextRepeat && remindersOn) void requestReminderPermission();
+    showToast(t("add.saved"));
   };
 
   const selectedCat = findCategory(categories, categoryId);
@@ -321,61 +276,6 @@ export default function AddTransactionScreen() {
         </View>
         <Separator />
         <DateField label={t("history.date")} value={date} onChange={setDate} />
-      </Section>
-
-      <Section
-        title={t("add.sections.repeat")}
-        footer={
-          nextRepeat
-            ? `${t("add.repeatNext", { date: formatDate(dayFromKey(nextRepeat), i18n.language) })} ${
-                repeatVaries || repeatAsk ? t("add.repeatAsk") : t("add.repeatAuto")
-              }`
-            : null
-        }
-      >
-        <SegmentedControl
-          style={styles.repeatSegmented}
-          options={[
-            { value: "never", label: t("add.repeatNever") },
-            { value: "monthly", label: t("repeating.everyMonth") },
-            { value: "yearly", label: t("repeating.everyYear") },
-          ]}
-          value={repeat}
-          onChange={(v) => setRepeat(v as typeof repeat)}
-        />
-        {repeat !== "never" && (
-          <>
-            <Separator />
-            <View style={styles.switchRow}>
-              <Text style={[type.body, styles.switchLabel, { color: repeatVaries ? colors.textSecondary : colors.text }]} numberOfLines={1}>
-                {t("repeating.ask")}
-              </Text>
-              <View style={styles.switchSlot}>
-                <Switch
-                  value={repeatVaries ? true : repeatAsk}
-                  onValueChange={setRepeatAsk}
-                  disabled={repeatVaries}
-                  trackColor={{ true: colors.success }}
-                  accessibilityLabel={t("repeating.ask")}
-                />
-              </View>
-            </View>
-            <Separator />
-            <View style={styles.switchRow}>
-              <Text style={[type.body, styles.switchLabel, { color: colors.text }]} numberOfLines={1}>
-                {t("repeating.variable")}
-              </Text>
-              <View style={styles.switchSlot}>
-                <Switch
-                  value={repeatVaries}
-                  onValueChange={setRepeatVaries}
-                  trackColor={{ true: colors.success }}
-                  accessibilityLabel={t("repeating.variable")}
-                />
-              </View>
-            </View>
-          </>
-        )}
       </Section>
 
       {isIncome ? (
@@ -535,5 +435,4 @@ const styles = StyleSheet.create({
   switchSlot:  { width: 64, height: 40, alignItems: "center", justifyContent: "center" },
   pickerLabel: { paddingHorizontal: space[4], paddingTop: space[3], paddingBottom: space[1] },
   sourceChips: { paddingTop: space[2] },
-  repeatSegmented: { margin: space[3] },
 });
