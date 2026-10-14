@@ -9,16 +9,16 @@ import {
   Alert,
   KeyboardAvoidingView,
   Pressable,
-  Share,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { v4 as uuid } from "uuid";
-import { useAppStore, persistedSnapshot } from "../store/useAppStore";
-import { buildExport } from "../store/backup";
+import { useAppStore } from "../store/useAppStore";
+import { buildTransactionsCsv } from "../services/csvExport";
+import { shareTextFile } from "../services/shareFile";
 import { useTheme } from "../hooks/useTheme";
-import { Category, categoryLabel } from "../models";
+import { Category, categoryLabel, dateKey } from "../models";
 import { formatAmount, validateAmount } from "../utils/money";
 import { amountErrorText, amountKeyboard, useCurrency } from "../hooks/useCurrency";
 import { haptics } from "../utils/haptics";
@@ -80,9 +80,20 @@ export default function SettingsScreen() {
       isNew: true,
     });
 
+  // The transactions as a spreadsheet file, through the system share sheet.
   const handleExport = async () => {
+    const { transactions, savingsGoals } = useAppStore.getState();
+    if (transactions.length === 0) {
+      Alert.alert(t("settings.exportEmpty"));
+      return;
+    }
     try {
-      await Share.share({ title: t("settings.exportTitle"), message: buildExport(persistedSnapshot()) });
+      const csv = buildTransactionsCsv(transactions, { categories, savingsGoals, currency, t });
+      await shareTextFile(csv, `${t("settings.exportFileName", { date: dateKey(new Date()) })}.csv`, {
+        mimeType: "text/csv",
+        uti: "public.comma-separated-values-text",
+        dialogTitle: t("settings.exportTitle"),
+      });
     } catch {
       Alert.alert(t("settings.exportFailed"));
     }

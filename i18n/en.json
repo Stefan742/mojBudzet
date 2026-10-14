@@ -224,18 +224,20 @@
     "subcatCount_one": "{{count}} subcategory",
     "subcatCount_other": "{{count}} subcategories",
     "data": "YOUR DATA",
-    "export": "Export data",
-    "exportTitle": "Moj Budzet data export",
+    "export": "Export to spreadsheet",
+    "exportTitle": "Moj Budzet transactions",
     "exportFailed": "The export did not work. Please try again.",
     "deleteAll": "Delete all data",
     "deleteAllTitle": "Delete all data?",
-    "deleteAllBody": "All transactions, categories, budgets and goals will be deleted from this device. This cannot be undone. Export your data first if you want a copy.",
+    "deleteAllBody": "All transactions, categories, budgets and goals will be deleted from this device. This cannot be undone. Export your transactions to a spreadsheet first if you want a copy.",
     "deleteAllConfirm": "Delete everything",
-    "dataFooter": "Your data is stored only on this device and may be included in the device's backups.",
+    "dataFooter": "Export makes a spreadsheet (CSV) of your transactions for Excel, Numbers or Google Sheets. Your data is stored only on this device and may be included in the device's backups.",
     "currencyHint": "Can be changed until you add your first transaction.",
     "currencyLockedTitle": "Currency can't be changed",
-    "currencyLockedBody": "Your transactions are recorded in {{code}}, and amounts are never converted. To use another currency, export your data, then delete all data and start again.",
-    "repeatingHint": "Rent, bills, subscriptions and your salary."
+    "currencyLockedBody": "Your transactions are recorded in {{code}}, and amounts are never converted. To use another currency, export your transactions to keep a copy, then delete all data and start again.",
+    "repeatingHint": "Rent, bills, subscriptions and your salary.",
+    "exportFileName": "Moj Budzet {{date}}",
+    "exportEmpty": "There are no transactions to export yet."
   },
   "leftover": {
     "title": "Last month's leftover",
@@ -333,7 +335,7 @@
       },
       "rights": {
         "title": "Your control",
-        "body": "In Settings you can export all of your data or delete it. Uninstalling the app also deletes its data from the device."
+        "body": "In Settings you can export your transactions as a spreadsheet, or delete all of your data. Uninstalling the app also deletes its data from the device."
       },
       "children": {
         "title": "Children",
@@ -496,5 +498,21 @@
     "searchTitle": "Search: “{{query}}”",
     "noMatch": "No transactions match",
     "remove": "Remove filter {{name}}"
+  },
+  "csv": {
+    "date": "Date",
+    "type": "Type",
+    "name": "Name",
+    "category": "Category",
+    "subcategory": "Subcategory",
+    "incomeSource": "Income source",
+    "amount": "Amount",
+    "currency": "Currency",
+    "note": "Note",
+    "repeating": "Repeating",
+    "yes": "Yes",
+    "expense": "Expense",
+    "income": "Income",
+    "savings": "Savings"
   }
 }

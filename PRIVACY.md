@@ -28,7 +28,7 @@ Suggestions are calculated on the device from the data you enter. Nothing is sen
 
 ### Your control
 
-In Settings you can export all of your data or delete it. Uninstalling the app also deletes its data from the device.
+In Settings you can export your transactions as a spreadsheet, or delete all of your data. Uninstalling the app also deletes its data from the device.
 
 ### Children
 
