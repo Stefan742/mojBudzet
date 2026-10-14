@@ -57,7 +57,8 @@ export function RecurringEditor({ rule, isNew, onClose }: { rule: RecurringRule;
   const selectedCat = findCategory(categories, categoryId);
 
   const handleSave = () => {
-    const value = amount.parse();
+    // A changing amount is only a hint, so it may stay empty (onboarding saves 0 for it).
+    const value = variable && !amount.text.trim() ? 0 : amount.parse();
     const name = merchant.trim() || (income && incomeType ? t(`incomeTypes.${incomeType}`) : "");
     if (!name) setNameError(true);
     if (value === null || !name) {
