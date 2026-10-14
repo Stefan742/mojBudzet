@@ -1,27 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import Animated, {
-  Easing,
-  FadeIn,
-  FadeInDown,
-  ZoomIn,
-  cancelAnimation,
-  interpolate,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withDelay,
-  withSequence,
-  withTiming,
-  type SharedValue,
-} from "react-native-reanimated";
+import Animated, { FadeIn, FadeInDown, ZoomIn, useReducedMotion } from "react-native-reanimated";
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop, SvgXml } from "react-native-svg";
 import { useTranslation } from "react-i18next";
 import { formatMoney } from "../../utils/money";
 import { useTheme } from "@/hooks/useTheme";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Icon, type IconName } from "@/components/Icon";
-import { LOGO_MOUTH_Y, LOGO_VIEWBOX, bill1Svg, bill2Svg, logoColors, walletSvg } from "@/components/logoSvg";
+import { bill1Svg, bill2Svg, logoColors, walletSvg } from "@/components/logoSvg";
 import { Separator } from "@/components/ui/Section";
 import { ROW_MIN, corners, elevation, money, radius, space, tint, type } from "@/constants/design";
 
@@ -52,83 +38,27 @@ function Glow({ color, size, style }: { color: string; size: number; style: obje
 // The logo at the loading screen's size, so the first launch flows from one to the other.
 const LOGO_W = 132;
 const LOGO_H = 177;
-const LOGO_SCALE = Math.min(LOGO_W / LOGO_VIEWBOX.width, LOGO_H / LOGO_VIEWBOX.height);
-/** The wallet's opening, as a share of the logo's height: the bills tilt around it. */
-const MOUTH = ((LOGO_H - LOGO_VIEWBOX.height * LOGO_SCALE) / 2 + LOGO_MOUTH_Y * LOGO_SCALE) / LOGO_H;
-/** How far above the wallet a bill starts, in points. */
-const DROP = 34;
-// A small settle as a bill lands (about 2pt, behind the wallet edge), not a bounce.
-// A timing curve, not a spring: the same on every platform, and it cannot overshoot far.
-const LAND = { duration: 520, easing: Easing.bezier(0.3, 1.4, 0.5, 1) };
-
-/** One bill: above the wallet and tilted at 0, in its place in the logo at 1. */
-function useBillStyle(drop: SharedValue<number>, tilt: number) {
-  return useAnimatedStyle(() => ({
-    opacity: interpolate(drop.value, [0, 0.35], [0, 1], "clamp"),
-    transform: [{ translateY: (1 - drop.value) * -DROP }, { rotate: `${(1 - drop.value) * tilt}deg` }],
-  }));
-}
-
-/**
- * The app logo, told as what the app is for: the wallet settles in, the two
- * bills drop into it one after the other, and the wallet gives a little as
- * they land. Then it stays still in the logo's own pose. Still with Reduce Motion.
- */
+/** The app logo, still, with a soft light behind it. */
 export function WelcomeHero() {
   const { colors, isDark } = useTheme();
-  const reduceMotion = useReducedMotion();
   const { fg, fg2 } = logoColors(isDark);
-  const wallet = useSharedValue(reduceMotion ? 1 : 0);
-  const big = useSharedValue(reduceMotion ? 1 : 0);
-  const small = useSharedValue(reduceMotion ? 1 : 0);
-  const give = useSharedValue(0);
-
-  useEffect(() => {
-    if (reduceMotion) return;
-    const out = Easing.out(Easing.cubic);
-    wallet.value = withTiming(1, { duration: 650, easing: out });
-    big.value = withDelay(420, withTiming(1, LAND));
-    small.value = withDelay(580, withTiming(1, LAND));
-    // Timed to the moment the first bill reaches the wallet (halfway through its drop).
-    give.value = withDelay(
-      600,
-      withSequence(withTiming(1, { duration: 120, easing: out }), withTiming(0, { duration: 380, easing: Easing.inOut(Easing.quad) }))
-    );
-    return () => {
-      cancelAnimation(wallet);
-      cancelAnimation(big);
-      cancelAnimation(small);
-      cancelAnimation(give);
-    };
-  }, [reduceMotion, wallet, big, small, give]);
-
-  const logo = useAnimatedStyle(() => ({
-    opacity: interpolate(wallet.value, [0, 0.6], [0, 1], "clamp"),
-    transform: [
-      { translateY: (1 - wallet.value) * 14 + give.value * 3 },
-      { scale: (0.9 + wallet.value * 0.1) * (1 - give.value * 0.025) },
-    ],
-  }));
-  const bigBill = useBillStyle(big, -12);
-  const smallBill = useBillStyle(small, 10);
-
   return (
     <View style={styles.center} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-      <Animated.View entering={FadeIn.duration(900)} style={styles.glows}>
+      <View style={styles.glows}>
         <Glow color={colors.success} size={300} style={styles.glowGreen} />
         <Glow color={colors.accent} size={300} style={styles.glowBlue} />
-      </Animated.View>
-      <Animated.View style={[styles.logo, logo]}>
-        <Animated.View style={[styles.layer, styles.billPivot, bigBill]}>
+      </View>
+      <View style={styles.logo}>
+        <View style={styles.layer}>
           <SvgXml xml={bill1Svg(fg)} width={LOGO_W} height={LOGO_H} />
-        </Animated.View>
-        <Animated.View style={[styles.layer, styles.billPivot, smallBill]}>
+        </View>
+        <View style={styles.layer}>
           <SvgXml xml={bill2Svg(fg2)} width={LOGO_W} height={LOGO_H} />
-        </Animated.View>
+        </View>
         <View style={styles.layer}>
           <SvgXml xml={walletSvg(fg)} width={LOGO_W} height={LOGO_H} />
         </View>
-      </Animated.View>
+      </View>
     </View>
   );
 }
@@ -306,7 +236,6 @@ const styles = StyleSheet.create({
   glowBlue:     { transform: [{ translateX: 60 }, { translateY: 40 }] },
   glows:        { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" },
   logo:         { width: LOGO_W, height: LOGO_H },
-  billPivot:    { transformOrigin: `50% ${MOUTH * 100}%` },
   layer:        { position: "absolute", top: 0, left: 0, width: LOGO_W, height: LOGO_H },
   card:         { overflow: "hidden", ...corners(radius.lg) },
   wide:         { width: "88%", maxWidth: 340 },

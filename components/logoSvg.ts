@@ -1,13 +1,8 @@
 /**
  * The app logo: a wallet with two bills coming out of it. Kept as SVG text so
- * it takes theme colours (it shows in dark mode) and its parts can move apart.
+ * it takes theme colours (it shows in dark mode); the loading screen moves its parts.
  */
 
-/** The drawing's own size; every part shares this viewBox. */
-export const LOGO_VIEWBOX = { width: 694.81, height: 837.83 };
-
-/** Where the wallet opens, in viewBox units: the bills come out above it. */
-export const LOGO_MOUTH_Y = 336;
 export const walletSvg = (fg: string) => `<svg viewBox="0 0 694.81 837.83" xmlns="http://www.w3.org/2000/svg">
   <path fill="${fg}"
     d="M61.82,837.83c-12.05,0-27.38-2.61-39.38-13.34-15.55-13.91-21.06-37.15-16.39-69.07L1.23,331.03c-1.58-7.63-1.64-16.22-.15-25.71,2.31-14.8,9.51-26.6,21.39-35.06,30.44-21.68,81.69-12.77,83.85-12.38l-3.54,19.68,1.77-9.84-1.76,9.84c-.45-.08-45.21-7.8-68.75,9-7.21,5.14-11.49,12.04-13.07,21.06l.24,21.08c1.06,3.93,2.8,7.3,5.23,10.14,12.54,14.65,43.38,15.87,71.31,15.87,45.44,0,468.83,1.68,473.1,1.7,26.96,0,78.02,13.83,78.02,66.15l5.1,331.29c.42,4.92,2.69,41.51-20.89,64.66-15.06,14.79-36.78,20.62-64.57,17.34H80.2c-2.88,.65-9.8,1.97-18.38,1.97ZM21.56,360.86l4.5,395.92-.12,.8c-3.8,25.2-.52,42.68,9.77,51.94,14.7,13.24,40.5,6.73,40.75,6.66l1.24-.32h1.31s490.69,0,490.69,0l.61,.07c21.7,2.66,38.07-1.25,48.68-11.61,17.91-17.5,15.07-48.61,15.03-48.92l-.05-.86-5.1-331.82c0-45.54-55.72-46.3-58.09-46.31-4.29-.02-427.64-1.7-473.04-1.7-28.22,0-56.93-1.23-76.17-13.85Z"/>
