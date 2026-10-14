@@ -141,6 +141,10 @@ export function SalaryStep({
 
 // ─── Regular payments ─────────────────────────────────────────────────────────
 
+/** [a, b, c, d, e] → [[a, b], [c, d], [e]] */
+const pairs = <T,>(items: readonly T[]): T[][] =>
+  Array.from({ length: Math.ceil(items.length / 2) }, (_, i) => items.slice(i * 2, i * 2 + 2));
+
 export function BillsStep({
   choices,
   errors,
@@ -161,35 +165,43 @@ export function BillsStep({
   return (
     <View style={styles.stack}>
       <View style={styles.tiles}>
-        {BILL_PRESETS.map((p) => {
-          const selected = !!choices[p.id];
-          return (
-            // The cell takes the width: PressableScale styles its inner view only.
-            <View key={p.id} style={styles.billCell}>
-              <PressableScale
-                onPress={() => {
-                  haptics.selection();
-                  onToggle(p.id);
-                }}
-                style={[
-                  styles.billTile,
-                  { backgroundColor: colors.card, borderColor: selected ? colors.accent : "transparent" },
-                ]}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: selected }}
-                accessibilityLabel={t(p.nameKey)}
-              >
-                <View style={[styles.billIcon, { backgroundColor: tint(p.color, "soft") }]}>
-                  <Icon name={p.icon} size={18} color={p.color} />
+        {pairs(BILL_PRESETS).map((pair) => (
+          // Rows of two equal cells: percentage widths in a wrapping row
+          // collapse to the content on iOS, so the tiles came out icon-sized.
+          <View key={pair[0].id} style={styles.tileRow}>
+            {pair.map((p) => {
+              const selected = !!choices[p.id];
+              return (
+                // The cell takes the width: PressableScale styles its inner view only.
+                <View key={p.id} style={styles.billCell}>
+                  <PressableScale
+                    onPress={() => {
+                      haptics.selection();
+                      onToggle(p.id);
+                    }}
+                    style={[
+                      styles.billTile,
+                      { backgroundColor: colors.card, borderColor: selected ? colors.accent : "transparent" },
+                    ]}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected }}
+                    accessibilityLabel={t(p.nameKey)}
+                  >
+                    <View style={[styles.billIcon, { backgroundColor: tint(p.color, "soft") }]}>
+                      <Icon name={p.icon} size={18} color={p.color} />
+                    </View>
+                    <Text style={[type.subheadline, styles.flex, { color: colors.text, fontWeight: "600" }]} numberOfLines={2}>
+                      {t(p.nameKey)}
+                    </Text>
+                    {selected && <Icon name="checkCircle" size={20} color={colors.accent} />}
+                  </PressableScale>
                 </View>
-                <Text style={[type.subheadline, styles.flex, { color: colors.text, fontWeight: "600" }]} numberOfLines={2}>
-                  {t(p.nameKey)}
-                </Text>
-                {selected && <Icon name="checkCircle" size={20} color={colors.accent} />}
-              </PressableScale>
-            </View>
-          );
-        })}
+              );
+            })}
+            {/* An odd last row keeps its tile at half width. */}
+            {pair.length === 1 && <View style={styles.billCell} />}
+          </View>
+        ))}
       </View>
 
       {chosen.map((p) => {
@@ -408,8 +420,9 @@ const styles = StyleSheet.create({
   days:          { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: space[2], paddingVertical: space[2] },
   dayCell:       { width: `${100 / 7}%`, alignItems: "center", paddingVertical: 3 },
   dayDot:        { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  tiles:         { flexDirection: "row", flexWrap: "wrap", gap: space[3] },
-  billCell:      { width: "48%", flexGrow: 1 },
+  tiles:         { gap: space[3] },
+  tileRow:       { flexDirection: "row", gap: space[3] },
+  billCell:      { flex: 1 },
   billTile:      { flexDirection: "row", alignItems: "center", gap: space[3], padding: space[3], minHeight: 64, borderWidth: 2, ...corners(radius.lg) },
   billIcon:      { width: 36, height: 36, alignItems: "center", justifyContent: "center", ...corners(radius.sm) },
   switchSlot:    { width: 64, height: 40, alignItems: "center", justifyContent: "center" },
