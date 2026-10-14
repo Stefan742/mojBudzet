@@ -1,12 +1,28 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, FadeInDown, ZoomIn, useReducedMotion } from "react-native-reanimated";
-import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from "react-native-svg";
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  ZoomIn,
+  cancelAnimation,
+  interpolate,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSpring,
+  withTiming,
+  type SharedValue,
+} from "react-native-reanimated";
+import Svg, { Circle, Defs, RadialGradient, Rect, Stop, SvgXml } from "react-native-svg";
 import { useTranslation } from "react-i18next";
 import { formatMoney } from "../../utils/money";
 import { useTheme } from "@/hooks/useTheme";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Icon, type IconName } from "@/components/Icon";
+import { LOGO_MOUTH_Y, LOGO_VIEWBOX, bill1Svg, bill2Svg, logoColors, walletSvg } from "@/components/logoSvg";
 import { Separator } from "@/components/ui/Section";
 import { ROW_MIN, corners, elevation, money, radius, space, tint, type } from "@/constants/design";
 
@@ -34,15 +50,67 @@ function Glow({ color, size, style }: { color: string; size: number; style: obje
   );
 }
 
-/** The app icon with a soft glow behind it. */
+// The logo at the loading screen's size, so the first launch flows from one to the other.
+const LOGO_W = 132;
+const LOGO_H = 177;
+const LOGO_SCALE = Math.min(LOGO_W / LOGO_VIEWBOX.width, LOGO_H / LOGO_VIEWBOX.height);
+/** The wallet's opening in points: the bills are clipped here, so they come out of it. */
+const MOUTH = (LOGO_H - LOGO_VIEWBOX.height * LOGO_SCALE) / 2 + LOGO_MOUTH_Y * LOGO_SCALE;
+
+/** One bill: hidden inside the wallet at rise 0, fanned out at rise 1, then floating. */
+function useBillStyle(rise: SharedValue<number>, float: SharedValue<number>, angle: number, x: number, opacity: number) {
+  return useAnimatedStyle(() => ({
+    opacity: interpolate(rise.value, [0, 0.35], [0, opacity], "clamp"),
+    transform: [
+      { translateX: x * rise.value },
+      { translateY: interpolate(rise.value, [0, 1], [MOUTH, -LOGO_H * 0.03]) - float.value * 3 },
+      { rotate: `${angle * (rise.value + float.value * 0.35)}deg` },
+    ],
+  }));
+}
+
+/** The app logo: the wallet springs in, the bills rise out of it and keep floating. */
 export function WelcomeHero() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const reduceMotion = useReducedMotion();
+  const { fg, fg2 } = logoColors(isDark);
+  const rise = useSharedValue(reduceMotion ? 1 : 0);
+  const float = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    rise.value = withDelay(450, withSpring(1, { damping: 11, stiffness: 90 }));
+    float.value = withDelay(
+      1700,
+      withRepeat(withTiming(1, { duration: 1800, easing: Easing.bezier(0.37, 0, 0.63, 1) }), -1, true)
+    );
+    return () => {
+      cancelAnimation(rise);
+      cancelAnimation(float);
+    };
+  }, [reduceMotion, rise, float]);
+
+  const front = useBillStyle(rise, float, -6, -3, 1);
+  const back = useBillStyle(rise, float, 4, 3, 0.9);
+
   return (
     <View style={styles.center} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-      <Glow color={colors.success} size={300} style={styles.glowGreen} />
-      <Glow color={colors.accent} size={300} style={styles.glowBlue} />
-      <Animated.View entering={ZoomIn.springify().damping(14)} style={[styles.appIcon, { backgroundColor: colors.success }]}>
-        <Icon name="money" size={54} color="#FFFFFF" />
+      <Animated.View entering={FadeIn.duration(700)} style={styles.glows}>
+        <Glow color={colors.success} size={300} style={styles.glowGreen} />
+        <Glow color={colors.accent} size={300} style={styles.glowBlue} />
+      </Animated.View>
+      <Animated.View entering={ZoomIn.springify().damping(14)} style={styles.logo}>
+        <View style={styles.mouth}>
+          <Animated.View style={[styles.layer, front]}>
+            <SvgXml xml={bill1Svg(fg)} width={LOGO_W} height={LOGO_H} />
+          </Animated.View>
+          <Animated.View style={[styles.layer, back]}>
+            <SvgXml xml={bill2Svg(fg2)} width={LOGO_W} height={LOGO_H} />
+          </Animated.View>
+        </View>
+        <View style={styles.layer}>
+          <SvgXml xml={walletSvg(fg)} width={LOGO_W} height={LOGO_H} />
+        </View>
       </Animated.View>
     </View>
   );
@@ -219,7 +287,10 @@ const styles = StyleSheet.create({
   glow:         { position: "absolute" },
   glowGreen:    { transform: [{ translateX: -50 }, { translateY: -30 }] },
   glowBlue:     { transform: [{ translateX: 60 }, { translateY: 40 }] },
-  appIcon:      { width: 104, height: 104, alignItems: "center", justifyContent: "center", ...corners(radius.xl) },
+  glows:        { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" },
+  logo:         { width: LOGO_W, height: LOGO_H },
+  mouth:        { position: "absolute", top: 0, left: 0, width: LOGO_W, height: MOUTH, overflow: "hidden" },
+  layer:        { position: "absolute", top: 0, left: 0, width: LOGO_W, height: LOGO_H },
   card:         { overflow: "hidden", ...corners(radius.lg) },
   wide:         { width: "88%", maxWidth: 340 },
   row:          { flexDirection: "row", alignItems: "center", gap: space[2], paddingHorizontal: space[4], minHeight: ROW_MIN },
