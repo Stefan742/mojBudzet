@@ -12,6 +12,11 @@ export interface RecurringRule {
   kind: TransactionKind.EXPENSE | TransactionKind.INCOME;
   /** Shown name, and the merchant of the transactions it adds. */
   merchant: string;
+  /**
+   * i18n key of a built-in name (onboarding's "Rent", "Salary"): shown in the
+   * app language instead of `merchant`. Dropped when the user renames it.
+   */
+  nameKey?: string;
   /** Smallest unit of the app currency. When `variable`, the last amount (a hint). */
   amount: number;
   /** The amount differs every time (electricity, water): always asked for. */
@@ -31,6 +36,20 @@ export interface RecurringRule {
   /** The first occurrence not yet added or skipped, "YYYY-MM-DD" (local). */
   nextDate: string;
 }
+
+/** The built-in names a rule can carry as `nameKey`: onboarding's bills and the salary. */
+export const BUILT_IN_RULE_NAMES = [
+  "onboarding.bills.rent",
+  "onboarding.bills.electricity",
+  "onboarding.bills.water",
+  "onboarding.bills.internet",
+  "onboarding.bills.netflix",
+  "onboarding.bills.spotify",
+  "onboarding.bills.gym",
+  "onboarding.bills.loan",
+  "incomeTypes.salary",
+] as const;
+export type BuiltInRuleName = (typeof BUILT_IN_RULE_NAMES)[number];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 

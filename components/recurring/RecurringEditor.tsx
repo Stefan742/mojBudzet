@@ -41,7 +41,8 @@ export function RecurringEditor({ rule, isNew, onClose }: { rule: RecurringRule;
   const remindersOn     = useAppStore((s) => s.remindersEnabled);
 
   const [kind, setKind]               = useState(rule.kind);
-  const [merchant, setMerchant]       = useState(rule.merchant);
+  // A built-in name opens in the app language; it stays built-in unless it is changed.
+  const [merchant, setMerchant]       = useState(() => (rule.nameKey ? t(rule.nameKey) : rule.merchant));
   const [variable, setVariable]       = useState(rule.variable);
   const amount                        = useAmountField(rule.amount, { allowZero: variable });
   const [frequency, setFrequency]     = useState<RepeatFrequency>(rule.frequency);
@@ -59,7 +60,12 @@ export function RecurringEditor({ rule, isNew, onClose }: { rule: RecurringRule;
   const handleSave = () => {
     // A changing amount is only a hint, so it may stay empty (onboarding saves 0 for it).
     const value = variable && !amount.text.trim() ? 0 : amount.parse();
-    const name = merchant.trim() || (income && incomeType ? t(`incomeTypes.${incomeType}`) : "");
+    const typed = merchant.trim();
+    const name = typed || (income && incomeType ? t(`incomeTypes.${incomeType}`) : "");
+    const nameKey =
+      rule.nameKey && typed === t(rule.nameKey) ? rule.nameKey
+      : !typed && income && incomeType ? `incomeTypes.${incomeType}`
+      : undefined;
     if (!name) setNameError(true);
     if (value === null || !name) {
       haptics.error();
@@ -69,6 +75,7 @@ export function RecurringEditor({ rule, isNew, onClose }: { rule: RecurringRule;
       ...rule,
       kind,
       merchant: name,
+      nameKey,
       amount: value,
       variable,
       categoryId: income ? undefined : categoryId,

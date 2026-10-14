@@ -33,10 +33,14 @@ export function RepeatTips() {
   const [editor, setEditor] = useState<RecurringRule | null>(null);
 
   const suggestion = useMemo(
-    () => findRepeatSuggestions(transactions, recurring, dismissed, new Date())[0] ?? null,
-    // Re-checked when the data or the month changes.
+    () => {
+      // A built-in name covers what the user types today: "Кирија", not the saved "Rent".
+      const named = recurring.map((r) => (r.nameKey ? { ...r, merchant: t(r.nameKey) } : r));
+      return findRepeatSuggestions(transactions, named, dismissed, new Date())[0] ?? null;
+    },
+    // Re-checked when the data, the language or the month changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactions, recurring, dismissed, thisMonth]
+    [transactions, recurring, dismissed, thisMonth, t]
   );
   const showIntro =
     !suggestion && !dismissed.includes(INTRO) && !recurring.some((r) => r.kind === TransactionKind.EXPENSE);

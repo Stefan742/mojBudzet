@@ -10,6 +10,8 @@ import {
   monthlyEquivalent,
   plannedMonthlyIncome,
 } from "../models";
+import type { TFunction } from "i18next";
+import { ruleName } from "../components/recurring/text";
 
 const rule = (over: Partial<RecurringRule> = {}): RecurringRule => ({
   id: "r",
@@ -83,5 +85,18 @@ describe("planned monthly income", () => {
     ];
     expect(monthlyEquivalent(rules[1])).toBe(1000);
     expect(plannedMonthlyIncome(rules)).toBe(61000);
+  });
+});
+
+describe("the name of a repeating transaction", () => {
+  const t = ((key: string) => `[${key}]`) as unknown as TFunction;
+
+  it("shows a built-in name in the app language, whatever was saved", () => {
+    expect(ruleName(rule({ merchant: "Rent", nameKey: "onboarding.bills.rent" }), t)).toBe("[onboarding.bills.rent]");
+  });
+
+  it("shows a typed name as typed, and falls back to the income source", () => {
+    expect(ruleName(rule({ merchant: " My flat " }), t)).toBe("My flat");
+    expect(ruleName(rule({ kind: TransactionKind.INCOME, merchant: "", incomeType: "salary" }), t)).toBe("[incomeTypes.salary]");
   });
 });

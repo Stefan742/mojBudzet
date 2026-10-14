@@ -8,6 +8,8 @@ import {
   TransactionKind,
   SavingsGoal,
   RecurringRule,
+  BUILT_IN_RULE_NAMES,
+  type BuiltInRuleName,
   monthKey,
   normalizeTransaction,
   dayFromKey,
@@ -142,12 +144,22 @@ const pickPersisted = (s: AppStoreState): PersistedState =>
 
 const deviceLanguage = (): string => i18n.options.lng ?? "mk";
 
+/** Every built-in rule name in both app languages, for recognising old rules (v7). */
+const builtInRuleNames = (): Record<string, BuiltInRuleName> =>
+  Object.fromEntries(
+    ["mk", "en"].flatMap((lng) => {
+      const t = i18n.getFixedT(lng);
+      return BUILT_IN_RULE_NAMES.map((key) => [t(key), key]);
+    })
+  );
+
 /** The transaction for one occurrence of a rule. */
 const occurrenceTransaction = (rule: RecurringRule, amount: number, date?: Date): Transaction =>
   normalizeTransaction({
     id: uuid(),
     date: (date ?? dayFromKey(rule.nextDate)).toISOString(),
-    merchant: rule.merchant,
+    // A built-in name is written in the language of the day it is added.
+    merchant: rule.nameKey ? i18n.t(rule.nameKey) : rule.merchant,
     amount,
     kind: rule.kind,
     categoryId: rule.categoryId,
@@ -177,6 +189,7 @@ export const useAppStore = create<AppStoreState>()(
                     id: uuid(),
                     kind: TransactionKind.INCOME,
                     merchant: salary.name,
+                    nameKey: "incomeTypes.salary",
                     amount: Math.round(salary.amount),
                     variable: false,
                     incomeType: "salary",
@@ -439,6 +452,7 @@ export const useAppStore = create<AppStoreState>()(
           newId: uuid,
           now: new Date(),
           salaryName: i18n.t("incomeTypes.salary"),
+          builtInNames: builtInRuleNames(),
         }) as AppStoreState,
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<PersistedState>;

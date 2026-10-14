@@ -1,4 +1,5 @@
 import type { IconName } from "@/components/Icon";
+import type { BuiltInRuleName } from "../../models";
 
 /**
  * Common monthly payments offered during onboarding. Each becomes a
@@ -7,8 +8,8 @@ import type { IconName } from "@/components/Icon";
  */
 export interface BillPreset {
   id: string;
-  /** i18n key of the name shown and saved. */
-  nameKey: string;
+  /** i18n key of the name, saved with the rule so it follows the app language. */
+  nameKey: BuiltInRuleName;
   icon: IconName;
   /** Tile colour (a system colour, also used in dark mode). */
   color: string;

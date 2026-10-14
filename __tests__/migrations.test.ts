@@ -145,3 +145,30 @@ describe("migratePersistedState to v6 (repeating transactions)", () => {
     expect(migratePersistedState({ incomeSchedule: [] }, 5, deps).recurring).toEqual([]);
   });
 });
+
+describe("migratePersistedState to v7 (built-in rule names)", () => {
+  const deps = {
+    newId: () => "x",
+    now: new Date(2026, 9, 14),
+    builtInNames: { Rent: "onboarding.bills.rent", "Кирија": "onboarding.bills.rent", Salary: "incomeTypes.salary", "Плата": "incomeTypes.salary" },
+  };
+  const rule = (merchant: string, kind: string, extra: object = {}) => ({ id: merchant, merchant, kind, ...extra });
+
+  it("gives onboarding names in either language their key back", () => {
+    const out = migratePersistedState(
+      { recurring: [rule("Rent", "Трошок"), rule(" кирија ", "Трошок"), rule("Плата", "Приход", { incomeType: "salary" })] },
+      6,
+      deps
+    );
+    expect(out.recurring!.map((r) => r.nameKey)).toEqual(["onboarding.bills.rent", "onboarding.bills.rent", "incomeTypes.salary"]);
+  });
+
+  it("leaves typed names, mismatched kinds and existing keys alone", () => {
+    const out = migratePersistedState(
+      { recurring: [rule("My flat", "Трошок"), rule("Rent", "Приход"), rule("Salary", "Трошок"), rule("Rent", "Трошок", { nameKey: "custom" })] },
+      6,
+      deps
+    );
+    expect(out.recurring!.map((r) => r.nameKey)).toEqual([undefined, undefined, undefined, "custom"]);
+  });
+});

@@ -5,7 +5,7 @@ import { LEGACY_COLOR_MAP } from "../constants/palette";
 import { DEFAULT_CURRENCY, isCurrencyCode } from "../constants/currencies";
 
 /** Bump when the persisted shape changes, and add a step to migratePersistedState. */
-export const STORE_VERSION = 6;
+export const STORE_VERSION = 7;
 
 /**
  * Repairs categories that were saved with a shared id (KB-1).
@@ -100,7 +100,13 @@ type Loose = Record<string, any>;
 export function migratePersistedState(
   persisted: unknown,
   fromVersion: number,
-  deps: { newId: () => string; now: Date; salaryName?: string }
+  deps: {
+    newId: () => string;
+    now: Date;
+    salaryName?: string;
+    /** Built-in rule names in every app language, mapped to their i18n key. */
+    builtInNames?: Record<string, string>;
+  }
 ): Partial<PersistedState> {
   const s: Loose = { ...(persisted as Loose) };
 
@@ -176,6 +182,7 @@ export function migratePersistedState(
         id: deps.newId(),
         kind: TransactionKind.INCOME,
         merchant: deps.salaryName ?? "",
+        nameKey: "incomeTypes.salary",
         amount,
         variable: false,
         incomeType: "salary",
@@ -190,6 +197,18 @@ export function migratePersistedState(
     s.recurring = rules;
     delete s.incomeSchedule;
     if (typeof s.remindersEnabled !== "boolean") s.remindersEnabled = true;
+  }
+
+  if (fromVersion < 7 && Array.isArray(s.recurring) && deps.builtInNames) {
+    // Names saved from onboarding ("Rent", "Кирија", "Salary") get their key back,
+    // so they show in the app language. An income only matches the salary.
+    const byName = new Map(Object.entries(deps.builtInNames).map(([name, key]) => [name.trim().toLowerCase(), key]));
+    s.recurring = (s.recurring as Loose[]).map((rule) => {
+      if (rule.nameKey || typeof rule.merchant !== "string") return rule;
+      const key = byName.get(rule.merchant.trim().toLowerCase());
+      const fits = key && (key === "incomeTypes.salary") === (rule.kind === TransactionKind.INCOME);
+      return fits ? { ...rule, nameKey: key } : rule;
+    });
   }
 
   return s as Partial<PersistedState>;

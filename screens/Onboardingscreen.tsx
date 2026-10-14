@@ -192,6 +192,7 @@ export default function OnboardingScreen() {
         id: uuid(),
         kind: TransactionKind.EXPENSE,
         merchant: t(preset.nameKey),
+        nameKey: preset.nameKey,
         amount: read(c.amountText, true) ?? 0,
         variable: c.variable,
         categoryId: parent?.id,

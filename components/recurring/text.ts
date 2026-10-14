@@ -6,9 +6,9 @@ import { dateLocale } from "../../utils/dates";
 const shortDate = (key: string, language: string) =>
   dayFromKey(key).toLocaleDateString(dateLocale(language), { day: "numeric", month: "short" });
 
-/** The rule's name: what the user typed, or the income source ("Salary"). */
+/** The rule's name: a built-in one in the app language, what the user typed, or the income source. */
 export const ruleName = (rule: RecurringRule, t: TFunction): string =>
-  rule.merchant.trim() || (rule.incomeType ? t(`incomeTypes.${rule.incomeType}`) : t("repeating.untitled"));
+  (rule.nameKey ? t(rule.nameKey) : rule.merchant.trim()) || (rule.incomeType ? t(`incomeTypes.${rule.incomeType}`) : t("repeating.untitled"));
 
 /** "Today", "Since 1 Oct", plus "1 more due" after missed months. */
 export const dueLabel = (rule: RecurringRule, todayKey: string, language: string, t: TFunction): string => {
