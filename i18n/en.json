@@ -260,8 +260,8 @@
     "step": "Step {{current}} of {{total}}",
     "dayOfMonth": "Day {{day}}",
     "welcome": {
-      "title": "Your money, clear and calm",
-      "body": "Track spending, plan your month and save. No account, no ads.",
+      "title": "Your money, your rules",
+      "body": "Track spending, plan your month and save.",
       "start": "Get started"
     },
     "track": {
