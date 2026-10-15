@@ -587,5 +587,15 @@
     "expense": "Expense",
     "income": "Income",
     "savings": "Savings"
+  },
+  "loadError": {
+    "title": "Your data could not be opened",
+    "body": "Something in the saved data is damaged, so the app cannot show it. Try again first. If it keeps happening, save a copy of the data and send it to {{email}} before starting over.",
+    "retry": "Try again",
+    "copy": "Save a copy of the data",
+    "copyTitle": "Save a copy of Moj Budzet data",
+    "copyFailed": "The copy could not be saved. Please try again.",
+    "reset": "Delete everything and start over",
+    "resetBody": "All saved data will be deleted from this device and the app will start fresh. This cannot be undone. Save a copy first if you might need it."
   }
 }

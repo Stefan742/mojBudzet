@@ -25,7 +25,8 @@ import {
   migratePersistedState,
   refreshDefaultCategories,
 } from "./migrations";
-import { createShardedStorage } from "./shardedStorage";
+import { createShardedStorage, readRawEntries } from "./shardedStorage";
+import { useSession } from "./session";
 import i18n from "../i18n";
 import { v4 as uuid } from "uuid";
 
@@ -463,7 +464,13 @@ export const useAppStore = create<AppStoreState>()(
         };
       },
       // Apply the saved language before the first screen renders (B-3).
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => (state, error) => {
+        // Zustand never finishes hydrating after an error, so without this the
+        // app would stay on the loading screen for good.
+        if (error) {
+          useSession.getState().setLoadError(error instanceof Error ? error.message : String(error));
+          return;
+        }
         if (state?.language) i18n.changeLanguage(state.language);
         // The old categorizer kept its own copy of what it learned; no longer used.
         void clearLegacyCategorizerData();
@@ -471,6 +478,29 @@ export const useAppStore = create<AppStoreState>()(
     }
   )
 );
+
+// ─── When saved data cannot be opened ────────────────────────────────────────
+// Nothing here writes the store's state, so the damaged data stays on the
+// device until the user chooses to start over.
+
+/** Reads the saved data again (after a failed load). */
+export const retryLoad = async (): Promise<void> => {
+  useSession.getState().setLoadError(null);
+  await useAppStore.persist.rehydrate();
+};
+
+/** Everything saved, exactly as stored, as one JSON text to keep or send. */
+export const storedDataCopy = async (): Promise<string> =>
+  JSON.stringify({ app: "mojbudzet", savedAt: new Date().toISOString(), entries: await readRawEntries(AsyncStorage, STORAGE_KEY) }, null, 2);
+
+/** Deletes the saved data and opens the app fresh (onboarding). */
+export const startOver = async (): Promise<void> => {
+  // Not persist.clearStorage(): it does not return the deletion, and the
+  // fresh state below must not be written while the damaged data is still there.
+  await useAppStore.persist.getOptions().storage?.removeItem(STORAGE_KEY);
+  useAppStore.setState({ ...initialState });
+  await retryLoad();
+};
 
 /** The data that is saved on the device, for export (R-11). */
 export const persistedSnapshot = (): PersistedState => pickPersisted(useAppStore.getState());

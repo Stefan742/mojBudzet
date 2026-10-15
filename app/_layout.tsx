@@ -15,6 +15,8 @@ import '@/i18n';
 import { useAppStore } from '@/store/useAppStore';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import LoadingScreen from '@/components/LoadingScreen';
+import { LoadFailed } from '@/components/LoadFailed';
+import { useSession } from '@/store/session';
 import { ToastHost } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/Icon';
@@ -31,6 +33,8 @@ export default function RootLayout() {
   // saved language is applied during hydration, before this first render (B-3).
   const hydrated    = useSyncExternalStore(subscribeHydration, getHydrated);
   const isOnboarded = useAppStore((s) => s.isOnboarded);
+  // Saved data that cannot be read gets a way out instead of endless loading.
+  const loadError   = useSession((s) => s.loadError);
   const { t }       = useTranslation();
   const { colors, isDark } = useTheme();
   const headerOptions = useLargeTitleOptions();
@@ -71,6 +75,8 @@ export default function RootLayout() {
         <ToastHost />
         <RepeatingRunner />
         </NavigationThemeProvider>
+      ) : loadError ? (
+        <LoadFailed />
       ) : (
         <LoadingScreen />
       )}

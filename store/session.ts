@@ -21,10 +21,16 @@ interface SessionState {
    * whole screen stack.
    */
   pendingRoute: string | null;
+  /**
+   * Saved data could not be read (damaged, or a migration failed). The app
+   * shows a recovery screen instead of loading forever.
+   */
+  loadError: string | null;
   showToast: (message: string, icon?: IconName, color?: string, action?: ToastAction) => void;
   clearToast: (id: number) => void;
   setRolloverPrompted: () => void;
   setPendingRoute: (route: string | null) => void;
+  setLoadError: (message: string | null) => void;
 }
 
 let nextId = 1;
@@ -33,10 +39,12 @@ export const useSession = create<SessionState>()((set) => ({
   toast: null,
   rolloverPrompted: false,
   pendingRoute: null,
+  loadError: null,
   showToast: (message, icon = "checkCircle", color, action) => set({ toast: { id: nextId++, message, icon, color, action } }),
   clearToast: (id) => set((s) => (s.toast?.id === id ? { toast: null } : {})),
   setRolloverPrompted: () => set({ rolloverPrompted: true }),
   setPendingRoute: (route) => set({ pendingRoute: route }),
+  setLoadError: (message) => set({ loadError: message }),
 }));
 
 /** Show a toast from anywhere (handlers, sheets that are about to close). */

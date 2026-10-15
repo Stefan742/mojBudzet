@@ -5,6 +5,7 @@ export interface KeyValueStore {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;
   removeItem(key: string): Promise<void>;
+  getAllKeys(): Promise<readonly string[]>;
 }
 
 interface Envelope {
@@ -15,6 +16,19 @@ interface Envelope {
 }
 
 const shardKey = (name: string, year: string) => `${name}:tx:${year}`;
+/** The index entry and every year shard, found by key (works even when the index is damaged). */
+const ownKeys = async (base: KeyValueStore, name: string) =>
+  (await base.getAllKeys()).filter((key) => key === name || key.startsWith(`${name}:tx:`));
+
+/**
+ * Every saved entry exactly as stored, unparsed: a copy the user can keep
+ * when the data can no longer be opened, so nothing is lost by starting over.
+ */
+export async function readRawEntries(base: KeyValueStore, name: string): Promise<Record<string, string | null>> {
+  const keys = await ownKeys(base, name);
+  const entries = await Promise.all(keys.map(async (key) => [key, await base.getItem(key)] as const));
+  return Object.fromEntries(entries);
+}
 const yearOf = (iso: string) => (typeof iso === "string" && /^\d{4}/.test(iso) ? iso.slice(0, 4) : "unknown");
 
 /**
@@ -85,14 +99,15 @@ export function createShardedStorage(base: KeyValueStore): StateStorage {
       }
     },
 
+    // By key rather than through the index, so starting over also works when
+    // the index itself is what could not be read.
     async removeItem(name) {
-      const raw = await base.getItem(name);
-      const years = raw ? ((JSON.parse(raw) as Envelope).txYears ?? []) : [];
-      for (const year of years) {
-        await base.removeItem(shardKey(name, year));
-        written.delete(shardKey(name, year));
+      // Shards first, the index last.
+      const keys = (await ownKeys(base, name)).sort((a, b) => Number(a === name) - Number(b === name));
+      for (const key of keys) {
+        await base.removeItem(key);
+        written.delete(key);
       }
-      await base.removeItem(name);
     },
   };
 }
