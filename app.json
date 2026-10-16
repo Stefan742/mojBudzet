@@ -69,6 +69,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/withoutPushEntitlement",
       "expo-router",
       [
         "expo-splash-screen",
