@@ -1,17 +1,27 @@
 import { Platform } from "react-native";
-import * as Notifications from "expo-notifications";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 
 /**
  * Local reminders for repeating transactions: one notification at 9:00 on
  * the day something is due. Scheduled on the device only; nothing is sent
- * anywhere. Not available on web.
+ * anywhere. Not available on web, or in Expo Go on Android (see below).
  */
 
 const CHANNEL_ID = "repeating";
 const ID_PREFIX = "repeating:";
 export const REMINDER_HOUR = 9;
 
-const supported = Platform.OS !== "web";
+// Expo Go on Android no longer ships expo-notifications (SDK 53+) and merely
+// importing it throws, which took the whole root layout down. Store and
+// development builds have it; there the module is loaded on first use.
+const inExpoGoAndroid = Platform.OS === "android" && Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+const supported = Platform.OS !== "web" && !inExpoGoAndroid;
+
+type NotificationsModule = typeof import("expo-notifications");
+let loaded: NotificationsModule | null = null;
+const notifications = (): NotificationsModule =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  (loaded ??= require("expo-notifications") as NotificationsModule);
 
 export interface Reminder {
   /** Unique per rule and day, so rescheduling replaces rather than duplicates. */
@@ -24,7 +34,7 @@ export interface Reminder {
 /** Show reminders that arrive while the app is open; create the Android channel. */
 export async function setUpReminders(channelName: string): Promise<void> {
   if (!supported) return;
-  Notifications.setNotificationHandler({
+  notifications().setNotificationHandler({
     handleNotification: async () => ({
       shouldShowBanner: true,
       shouldShowList: true,
@@ -33,9 +43,9 @@ export async function setUpReminders(channelName: string): Promise<void> {
     }),
   });
   if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+    await notifications().setNotificationChannelAsync(CHANNEL_ID, {
       name: channelName,
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: notifications().AndroidImportance.DEFAULT,
     });
   }
 }
@@ -43,38 +53,38 @@ export async function setUpReminders(channelName: string): Promise<void> {
 /** Asks once, at a moment that makes sense (the first repeating transaction). */
 export async function requestReminderPermission(): Promise<boolean> {
   if (!supported) return false;
-  const current = await Notifications.getPermissionsAsync();
+  const current = await notifications().getPermissionsAsync();
   if (current.granted) return true;
   if (!current.canAskAgain) return false;
-  return (await Notifications.requestPermissionsAsync()).granted;
+  return (await notifications().requestPermissionsAsync()).granted;
 }
 
 /** Notifications were turned off for the app in the system settings. */
 export async function remindersBlocked(): Promise<boolean> {
   if (!supported) return false;
-  const current = await Notifications.getPermissionsAsync();
+  const current = await notifications().getPermissionsAsync();
   return !current.granted && !current.canAskAgain;
 }
 
 /** Replaces every scheduled reminder with `reminders` (pass [] to clear). */
 export async function scheduleReminders(reminders: Reminder[]): Promise<void> {
   if (!supported) return;
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const scheduled = await notifications().getAllScheduledNotificationsAsync();
   await Promise.all(
     scheduled
       .filter((n) => n.identifier.startsWith(ID_PREFIX))
-      .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
+      .map((n) => notifications().cancelScheduledNotificationAsync(n.identifier))
   );
-  if (!reminders.length || !(await Notifications.getPermissionsAsync()).granted) return;
+  if (!reminders.length || !(await notifications().getPermissionsAsync()).granted) return;
   const now = Date.now();
   await Promise.all(
     reminders
       .filter((r) => r.date.getTime() > now)
       .map((r) =>
-        Notifications.scheduleNotificationAsync({
+        notifications().scheduleNotificationAsync({
           identifier: `${ID_PREFIX}${r.key}`,
           content: { title: r.title, body: r.body },
-          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: r.date, channelId: CHANNEL_ID },
+          trigger: { type: notifications().SchedulableTriggerInputTypes.DATE, date: r.date, channelId: CHANNEL_ID },
         })
       )
   );
@@ -83,7 +93,7 @@ export async function scheduleReminders(reminders: Reminder[]): Promise<void> {
 /** Calls `onOpen` when the user taps a reminder. Returns the unsubscribe function. */
 export function onReminderTapped(onOpen: () => void): () => void {
   if (!supported) return () => undefined;
-  const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+  const subscription = notifications().addNotificationResponseReceivedListener((response) => {
     if (response.notification.request.identifier.startsWith(ID_PREFIX)) onOpen();
   });
   return () => subscription.remove();
